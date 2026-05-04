@@ -4,15 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Stub for compilation only - real class provided by MIUI system at runtime.
+ * Stub for compilation only.
  */
 public class MiuiFreeFormManager {
     public static List<MiuiFreeFormStackInfo> getAllFreeFormStackInfosOnDisplay(int displayId) {
         return new ArrayList<>();
     }
-
     public static class MiuiFreeFormStackInfo {
-        public String packageName;
         public int taskId;
+        public String packageName;
     }
 }

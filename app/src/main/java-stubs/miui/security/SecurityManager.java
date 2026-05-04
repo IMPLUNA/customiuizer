@@ -1,13 +1,14 @@
 package miui.security;
 
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Stub for compilation only - real class provided by MIUI system at runtime.
+ * Stub for compilation only.
  */
 public class SecurityManager {
     public boolean getApplicationAccessControlEnabledAsUser(String pkgName, int userId) { return false; }
     public void setApplicationAccessControlEnabledForUser(String pkgName, boolean enabled, int userId) {}
-    public HashSet<String> getAllPrivacyApps(int userId) { return new HashSet<>(); }
-    public void setPrivacyApp(String pkgName, int userId, boolean privacy) {}
+    public Map<Integer, Boolean> getAllPrivacyApps(int userId) { return new HashMap<>(); }
+    public void setPrivacyApp(String pkgName, int userId, boolean isPrivacy) {}
 }

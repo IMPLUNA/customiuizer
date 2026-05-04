@@ -7,16 +7,18 @@ import android.content.ContentResolver;
  */
 public class MiuiSettings {
     public static class Global {
-        public static boolean getBoolean(ContentResolver resolver, String key) { return false; }
-        public static boolean getBoolean(ContentResolver resolver, String key, boolean defaultValue) { return defaultValue; }
-        public static int getInt(ContentResolver resolver, String key, int defaultValue) { return defaultValue; }
-        public static String getString(ContentResolver resolver, String key) { return null; }
+        public static boolean getBoolean(ContentResolver cr, String key) { return false; }
+        public static boolean getBoolean(ContentResolver cr, String key, boolean def) { return def; }
+        public static int getInt(ContentResolver cr, String key, int def) { return def; }
+        public static String getString(ContentResolver cr, String key) { return null; }
     }
     public static class System {
-        public static boolean getBoolean(ContentResolver resolver, String key) { return false; }
-        public static int getInt(ContentResolver resolver, String key, int defaultValue) { return defaultValue; }
+        public static boolean getBoolean(ContentResolver cr, String key) { return false; }
+        public static int getInt(ContentResolver cr, String key, int def) { return def; }
+        public static String getString(ContentResolver cr, String key) { return null; }
     }
     public static class Secure {
-        public static boolean getBoolean(ContentResolver resolver, String key) { return false; }
+        public static boolean getBoolean(ContentResolver cr, String key) { return false; }
+        public static int getInt(ContentResolver cr, String key, int def) { return def; }
     }
 }
