@@ -13,6 +13,11 @@ def lastVersionName = "25.09.25"
 
 android {
     namespace "name.monwf.customiuizer"
+    sourceSets {
+        main {
+            java.srcDirs += 'src/main/java-stubs'
+        }
+    }
     signingConfigs {
         v2 {
             storeFile sFile
