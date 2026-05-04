@@ -1196,11 +1196,14 @@ public class SystemUI {
     private static void dumpMobileViewModelClasses(ClassLoader cl) {
         try {
             String[] candidates = {
+                "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel",
+                "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel",
+                "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModelCommon",
+                "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconsViewModel",
                 "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM",
                 "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconVMImpl",
                 "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconViewModel",
                 "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.CellularIconViewModel",
-                "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel",
                 "com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.SignalIconViewModel",
             };
             StringBuilder sb = new StringBuilder("[Pengeek] MobileViewModel scan:");
@@ -1295,9 +1298,10 @@ public class SystemUI {
         });
 
         final int[] subscriptionsData = {-1, 0, 0}; // data-subId, main-level, sub-level
-        Class<?> MiuiMobileIconVMImplClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconVMImpl", lpparam.getClassLoader());
+        Class<?> MiuiMobileIconVMImplClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.MiuiMobileIconsViewModel", lpparam.getClassLoader());
+        if (MiuiMobileIconVMImplClass == null) MiuiMobileIconVMImplClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconVMImpl", lpparam.getClassLoader());
         final boolean newMobileIconVMImpl = MiuiMobileIconVMImplClass != null;
-        ModuleHelper.findAndHookMethod("com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter", lpparam.getClassLoader(), "start", new MethodHook() {
+        ModuleHelper.findAndHookMethodSilently("com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter", lpparam.getClassLoader(), "start", new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
                 try {
@@ -1345,7 +1349,12 @@ public class SystemUI {
                 if (subIdObject != null) {
                     subscriptionsData[0] = ((Integer) subIdObject).intValue();
                 }
-                ModuleHelper.hookAllConstructors("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader(), new MethodHook() {
+                Class<?> MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel", lpparam.getClassLoader());
+                if (MiuiCellularIconVMClass == null) MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
+                if (MiuiCellularIconVMClass == null) MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconsViewModel", lpparam.getClassLoader());
+                if (MiuiCellularIconVMClass == null) MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
+                if (MiuiCellularIconVMClass != null) {
+                ModuleHelper.hookAllConstructors(MiuiCellularIconVMClass, new MethodHook() {
                     @Override
                     protected void after(MethodHookParam param) throws Throwable {
                         try {
@@ -1379,6 +1388,7 @@ public class SystemUI {
                     }
                 }
             });
+                } // close if (MiuiCellularIconVMClass != null)
                 } catch (Throwable t) {
                     XposedHelpers.log("[Pengeek] DualRowSignal start error: " + t);
                 }
@@ -2104,7 +2114,10 @@ public class SystemUI {
         boolean hideRoaming = MainModule.mPrefs.getBoolean("system_statusbaricons_roaming");
         boolean hideIndicator = MainModule.mPrefs.getBoolean("system_networkindicator_mobile");
         boolean hideMobileType = MainModule.mPrefs.getBoolean("system_statusbar_mobiletype_show_never");
-        Class<?> MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
+        Class<?> MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel", lpparam.getClassLoader());
+        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
+        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconsViewModel", lpparam.getClassLoader());
+        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
         if (MiuiCellularIconVM != null) ModuleHelper.hookAllConstructors(MiuiCellularIconVM, new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
@@ -3112,12 +3125,12 @@ public class SystemUI {
     }
 
     public static void HideSignalIconsHook (PackageReadyParam lpparam) {
-        Class<?> MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
+        Class<?> MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel", lpparam.getClassLoader());
+        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
+        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconsViewModel", lpparam.getClassLoader());
+        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
         if (MiuiCellularIconVM == null) {
-            // HyperOS 2: MiuiCellularIconVM removed, try MiuiMobileIconVMImpl as fallback
-            Class<?> MiuiMobileIconVMImpl = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconVMImpl", lpparam.getClassLoader());
-            if (MiuiMobileIconVMImpl == null) {
-                XposedHelpers.log("[Pengeek] HideSignalIconsHook: neither MiuiCellularIconVM nor MiuiMobileIconVMImpl found, feature disabled");
+            XposedHelpers.log("[Pengeek] HideSignalIconsHook: no mobile ViewModel found, feature disabled");
                 return;
             }
             XposedHelpers.log("[Pengeek] HideSignalIconsHook: using MiuiMobileIconVMImpl fallback");
@@ -3136,7 +3149,7 @@ public class SystemUI {
             });
             return;
         }
-        ModuleHelper.hookAllConstructors(MiuiCellularIconVM, new MethodHook() {
+        if (MiuiCellularIconVM != null) ModuleHelper.hookAllConstructors(MiuiCellularIconVM, new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
                 if (MainModule.mPrefs.getBoolean("system_statusbaricons_signal") && !MainModule.mPrefs.getBoolean("system_statusbaricons_signal_wificonnected")) {
