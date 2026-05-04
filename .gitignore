@@ -18,3 +18,8 @@ app/standalone/*
 app/develop/
 .idea/.name
 .idea/copilot/
+
+# Signing
+*.jks
+*.keystore
+keystore.properties
