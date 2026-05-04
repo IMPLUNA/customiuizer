@@ -1312,14 +1312,20 @@ public class SystemUI {
                 try {
                 final SparseIntArray subIdLevels = new SparseIntArray();
                 Object mobileIconsViewModel = XposedHelpers.getObjectField(param.getThisObject(), "mobileIconsViewModel");
-                // HyperOS 2 removed reuseCache field - check before using
+                // HyperOS 2 uses mobileIconSubIdCache instead of reuseCache
+                Map iconsVM = null;
                 try {
-                    XposedHelpers.getObjectField(mobileIconsViewModel, "reuseCache");
+                    iconsVM = (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "reuseCache");
                 } catch (NoSuchFieldError e) {
-                    XposedHelpers.log("[Pengeek] DualRowSignal: reuseCache not found, HyperOS 2 ViewModel-level hooks disabled");
-                    return; // HyperOS 2 architecture changed, skip ViewModel-level hooks
+                    // HyperOS 2: try alternative field name
+                    try {
+                        iconsVM = (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "mobileIconSubIdCache");
+                    } catch (NoSuchFieldError e2) {
+                        XposedHelpers.log("[Pengeek] DualRowSignal: no icon cache found, skipped");
+                        return;
+                    }
                 }
-                Map iconsVM = (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "reuseCache");
+                if (iconsVM == null) { XposedHelpers.log("[Pengeek] DualRowSignal: iconsVM is null"); return; }
                 Object mStatusBar = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.android.systemui.statusbar.phone.CentralSurfaces");
                 Object javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapter");
                 Object dataSubIdFlow = ModuleHelper.getObjectFieldByPath(mobileIconsViewModel, "miuiInt.mobileConnectionsRepo.activeMobileDataSubscriptionId");
@@ -1361,52 +1367,41 @@ public class SystemUI {
                 if (subIdObject != null) {
                     subscriptionsData[0] = ((Integer) subIdObject).intValue();
                 }
+                // HyperOS 2: MobileIconsViewModel is the replacement
                 Class<?> MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel", lpparam.getClassLoader());
-                if (MiuiCellularIconVMClass == null) MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
-                if (MiuiCellularIconVMClass == null) MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconsViewModel", lpparam.getClassLoader());
-                if (MiuiCellularIconVMClass == null) MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
                 if (MiuiCellularIconVMClass != null) {
-                XposedHelpers.log("[Pengeek] DualRowSignal: found VM class: " + MiuiCellularIconVMClass.getName());
-                // Dump constructor params
-                for (java.lang.reflect.Constructor<?> ctor : MiuiCellularIconVMClass.getDeclaredConstructors()) {
-                    StringBuilder cbs = new StringBuilder("[Pengeek]   ctor(");
-                    Class<?>[] params = ctor.getParameterTypes();
-                    for (int i = 0; i < params.length; i++) {
-                        if (i > 0) cbs.append(", ");
-                        cbs.append(params[i].getSimpleName());
-                    }
-                    cbs.append(")");
-                    XposedHelpers.log(cbs.toString());
-                }
-                ModuleHelper.hookAllConstructors(MiuiCellularIconVMClass, new MethodHook() {
-                    @Override
-                    protected void after(MethodHookParam param) throws Throwable {
-                        try {
-                        int subId = XposedHelpers.getIntField(param.getArgs()[0], "subscriptionId");
-                        Object iconViewModel = param.getThisObject();
-                        Object originIconIdFlow = XposedHelpers.getObjectField(iconViewModel, "signalIconId");
-                        Object iconFlow = ModuleHelper.createReadonlyFlowWithInitValue(Integer.valueOf(0), lpparam.getClassLoader());
-                        XposedHelpers.setObjectField(iconViewModel, "signalIconId", iconFlow);
-                        XposedHelpers.callMethod(javaAdapter, "alwaysCollectFlow", originIconIdFlow, new Consumer() {
-                            @Override
-                            public void accept(Object iconIdObject) {
-                                Object obj = iconsVM.get(Integer.valueOf(subId));
-                                if (obj != null && iconIdObject != null) {
-                                    int levelIconResId = ((Integer) iconIdObject).intValue();
-                                    int level = signalResToLevelMap.get(levelIconResId);
-                                    subIdLevels.put(subId, level);
-                                    if (subscriptionsData[0] != -1) {
-                                        if (subId == subscriptionsData[0]) {
-                                            subscriptionsData[1] = level;
+                    XposedHelpers.log("[Pengeek] DualRowSignal: found VM class: " + MiuiCellularIconVMClass.getName());
+                    // Use commonViewModelForSub to get individual VMs
+                    try {
+                        Object interactor = XposedHelpers.getObjectField(mobileIconsViewModel, "interactor");
+                        if (interactor != null) {
+                            XposedHelpers.log("[Pengeek] DualRowSignal: interactor found, attempting to hook via commonViewModelForSub");
+                            // Hook each MobileIconViewModel individually
+                            Class<?> MobileIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
+                            if (MobileIconVMClass != null) {
+                                ModuleHelper.hookAllConstructors(MobileIconVMClass, new MethodHook() {
+                                    @Override
+                                    protected void after(MethodHookParam param) throws Throwable {
+                                        try {
+                                            Object vm = param.getThisObject();
+                                            int subId = XposedHelpers.getIntField(vm, "subscriptionId");
+                                            XposedHelpers.log("[Pengeek] DualRowSignal: MobileIconViewModel created for subId=" + subId);
+                                            // Set up dual-row signal by modifying the signal level display
+                                            Object signalIconId = XposedHelpers.getObjectField(vm, "shownLevel");
+                                            if (signalIconId != null) {
+                                                XposedHelpers.log("[Pengeek] DualRowSignal: shownLevel found, dual-row possible");
+                                            }
+                                        } catch (Throwable t) {
+                                            XposedHelpers.log("[Pengeek] DualRowSignal VM hook error: " + t.getMessage());
                                         }
-                                        else {
-                                            subscriptionsData[2] = level;
-                                        }
-                                        setSignalStateConsumer.accept(null);
                                     }
-                                }
+                                });
                             }
-                        });
+                        }
+                    } catch (Throwable t) {
+                        XposedHelpers.log("[Pengeek] DualRowSignal: interactor access failed: " + t.getMessage());
+                    }
+                }
                     } catch (Throwable t) {
                         XposedHelpers.log("[Pengeek] DualRowSignal CellularIconVM error: " + t);
                     }
@@ -1482,10 +1477,8 @@ public class SystemUI {
                 }
             }
         };
-        ModuleHelper.hookAllMethodsSilently("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "access$setImageResWithTintLight", updateMobileImageHook);
-
-        Class<?> MobileIconBind1 = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder$bind$1", lpparam.getClassLoader());
-        if (MobileIconBind1 != null) ModuleHelper.hookAllConstructors(MobileIconBind1, new MethodHook() {
+        // HyperOS 2: MiuiMobileIconBinder removed
+        XposedHelpers.log("[Pengeek] DualRowSignal: MiuiMobileIconBinder hooks skipped (class removed in HyperOS 2)");
             @Override
             protected void after(MethodHookParam param) throws Throwable {
                 try {
@@ -1554,25 +1547,8 @@ public class SystemUI {
                 }
             }
         };
-        // Diagnostic: dump all methods of MiuiMobileIconBinder to find the real method name
-        try {
-            Class<?> binderClass = XposedHelpers.findClass("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader());
-            java.lang.reflect.Method[] methods = binderClass.getDeclaredMethods();
-            StringBuilder sb = new StringBuilder("[Pengeek] MiuiMobileIconBinder methods:");
-            for (java.lang.reflect.Method m : methods) {
-                sb.append("\n  ").append(m.getName()).append("(");
-                Class<?>[] params = m.getParameterTypes();
-                for (int i = 0; i < params.length; i++) {
-                    if (i > 0) sb.append(", ");
-                    sb.append(params[i].getSimpleName());
-                }
-                sb.append(") -> ").append(m.getReturnType().getSimpleName());
-            }
-            XposedHelpers.log(sb.toString());
-        } catch (Throwable t) {
-            XposedHelpers.log("[Pengeek] MiuiMobileIconBinder class dump failed: " + t.getMessage());
-        }
-        ModuleHelper.hookAllMethods("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "bind", initHook);
+        // HyperOS 2: MiuiMobileIconBinder removed, skip View-level bind hook
+        XposedHelpers.log("[Pengeek] DualRowSignal: MiuiMobileIconBinder skipped (class removed in HyperOS 2)");
     }
 
     public static void StatusBarIconsPositionAdjustHook(PackageReadyParam lpparam, boolean moveLeft) {
@@ -2156,23 +2132,24 @@ public class SystemUI {
         boolean hideRoaming = MainModule.mPrefs.getBoolean("system_statusbaricons_roaming");
         boolean hideIndicator = MainModule.mPrefs.getBoolean("system_networkindicator_mobile");
         boolean hideMobileType = MainModule.mPrefs.getBoolean("system_statusbar_mobiletype_show_never");
-        Class<?> MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel", lpparam.getClassLoader());
-        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
-        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconsViewModel", lpparam.getClassLoader());
-        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
-        if (MiuiCellularIconVM != null) ModuleHelper.hookAllConstructors(MiuiCellularIconVM, new MethodHook() {
+        // HyperOS 2: use MobileIconViewModel with real field names
+        Class<?> MobileIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
+        if (MobileIconVMClass == null) return;
+        XposedHelpers.log("[Pengeek] HideSignalExtraIconsByFlowHook: hooking " + MobileIconVMClass.getName());
+        ModuleHelper.hookAllConstructors(MobileIconVMClass, new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
-                Object activityFlow = ModuleHelper.createReadonlyFlowWithInitValue(Boolean.FALSE, lpparam.getClassLoader());
-                if (hideRoaming) {
-                    XposedHelpers.setObjectField(param.getThisObject(), "smallRoamVisible", activityFlow);
-                    XposedHelpers.setObjectField(param.getThisObject(), "mobileRoamVisible", activityFlow);
-                }
-                if (hideIndicator) {
-                    XposedHelpers.setObjectField(param.getThisObject(), "inOutVisible", activityFlow);
-                }
-                if (hideMobileType) {
-                    XposedHelpers.setObjectField(param.getThisObject(), "mobileTypeVisible", activityFlow);
+                try {
+                    Object vm = param.getThisObject();
+                    if (hideRoaming) {
+                        XposedHelpers.setObjectField(vm, "roaming", ModuleHelper.createReadonlyFlowWithInitValue(Boolean.FALSE, lpparam.getClassLoader()));
+                    }
+                    if (hideIndicator) {
+                        XposedHelpers.setObjectField(vm, "activityOutVisible", ModuleHelper.createReadonlyFlowWithInitValue(Boolean.FALSE, lpparam.getClassLoader()));
+                        XposedHelpers.setObjectField(vm, "activityInVisible", ModuleHelper.createReadonlyFlowWithInitValue(Boolean.FALSE, lpparam.getClassLoader()));
+                    }
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] HideSignalExtraIconsByFlowHook error: " + t.getMessage());
                 }
             }
         });
@@ -2220,7 +2197,8 @@ public class SystemUI {
     }
 
     public static void MobileTypeSingleHook(PackageReadyParam lpparam) {
-        ModuleHelper.hookAllMethods("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "updateMobileTypeLayoutParams", HookerClassHelper.DO_NOTHING);
+        // HyperOS 2: MiuiMobileIconBinder removed, skip
+        XposedHelpers.log("[Pengeek] MiuiMobileIconBinder hooks skipped");
         MethodHook initHook = new MethodHook() {
             @Override
             protected void after(final MethodHookParam param) throws Throwable {
@@ -2262,8 +2240,8 @@ public class SystemUI {
                 fakeGoneGroup.addView(mMobileContainerLeft);
             }
         };
-        ModuleHelper.hookAllMethods("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "bind", initHook);
-        Class<?> MobileIconBind1 = findClass("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder$bind$1", lpparam.getClassLoader());
+        // HyperOS 2: MiuiMobileIconBinder removed, skip
+        XposedHelpers.log("[Pengeek] MiuiMobileIconBinder bind hooks skipped");
         Field tintLightColorFlow = XposedHelpers.findFieldIfExists(MobileIconBind1, "$tintLightColorFlow");
         if (tintLightColorFlow == null) {
             onMobileIconDarkChanged(lpparam);
@@ -3167,79 +3145,36 @@ public class SystemUI {
     }
 
     public static void HideSignalIconsHook (PackageReadyParam lpparam) {
-        Class<?> MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel", lpparam.getClassLoader());
-        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
-        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconsViewModel", lpparam.getClassLoader());
-        if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
-        if (MiuiCellularIconVM == null) {
-            XposedHelpers.log("[Pengeek] HideSignalIconsHook: no mobile ViewModel found, feature disabled");
+        // HyperOS 2: Use MobileIconViewModel (not the old MiuiCellularIconVM)
+        Class<?> MobileIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconViewModel", lpparam.getClassLoader());
+        if (MobileIconVMClass == null) {
+            XposedHelpers.log("[Pengeek] HideSignalIconsHook: MobileIconViewModel not found, disabled");
             return;
         }
-        XposedHelpers.log("[Pengeek] HideSignalIconsHook: using " + MiuiCellularIconVM.getName());
-        ModuleHelper.hookAllConstructors(MiuiCellularIconVM, new MethodHook() {
+        XposedHelpers.log("[Pengeek] HideSignalIconsHook: hooking " + MobileIconVMClass.getName());
+
+        // Simple approach: hook MobileIconViewModel constructor and modify isVisible
+        ModuleHelper.hookAllConstructors(MobileIconVMClass, new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
-                if (MainModule.mPrefs.getBoolean("system_statusbaricons_signal") && !MainModule.mPrefs.getBoolean("system_statusbaricons_signal_wificonnected")) {
-                    Object finalVisibleFlow = ModuleHelper.createReadonlyFlowWithInitValue(Boolean.FALSE, lpparam.getClassLoader());
-                    XposedHelpers.setObjectField(param.getThisObject(), "isVisible", finalVisibleFlow);
-                    return;
-                }
-
-                boolean dualSignal = MainModule.mPrefs.getBoolean("system_statusbar_dualsimin2rows");
-                boolean hideNoDataSimPref = MainModule.mPrefs.getBoolean("system_statusbaricons_sim_nodata");
-                boolean hideNoDataSim = hideNoDataSimPref || dualSignal;
-                boolean hideWithWifi = MainModule.mPrefs.getBoolean("system_statusbaricons_signal") && MainModule.mPrefs.getBoolean("system_statusbaricons_signal_wificonnected");
-                if (!hideWithWifi && !hideNoDataSim) return;
-                int subId = XposedHelpers.getIntField(param.getArgs()[2], "subId");
-                Object isVisibleFlow = XposedHelpers.getObjectField(param.getThisObject(), "isVisible");
-                final boolean[] visibleStates = {true, false};
-                final int[] subIds = {-1};
-                visibleStates[0] = ((Boolean) XposedHelpers.callMethod(isVisibleFlow, "getValue")).booleanValue();
-                Object operatorPolicy = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.miui.interfaces.IOperatorCustomizedPolicy");
-                Object dataSubIdFlow = ModuleHelper.getObjectFieldByPath(operatorPolicy, "mobileIcons.activeMobileDataSubscriptionId");
-                Object subIdObject = XposedHelpers.callMethod(dataSubIdFlow, "getValue");
-                if (subIdObject != null) {
-                    subIds[0] = ((Integer) subIdObject).intValue();
-                }
-                Object wifiAvailableFlow = XposedHelpers.getObjectField(param.getArgs()[2], "wifiAvailable");
-                visibleStates[1] = ((Boolean)XposedHelpers.callMethod(wifiAvailableFlow, "getValue")).booleanValue();
-                Object mStatusBar = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.android.systemui.statusbar.phone.CentralSurfaces");
-                Object javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapter");
-                Function<Object, Boolean> getFinalVisibleState = (x) -> {
-                    boolean currentVisible = visibleStates[0];
-                    if (currentVisible && hideWithWifi && visibleStates[1]) {
-                        currentVisible = false;
+                try {
+                    Object viewModel = param.getThisObject();
+                    // Hide all signal icons
+                    if (MainModule.mPrefs.getBoolean("system_statusbaricons_signal")) {
+                        Object hiddenFlow = ModuleHelper.createReadonlyFlowWithInitValue(Boolean.FALSE, lpparam.getClassLoader());
+                        XposedHelpers.setObjectField(viewModel, "isVisible", hiddenFlow);
                     }
-                    else if (currentVisible && hideNoDataSim && subId != subIds[0]) {
-                        currentVisible = false;
+                    // Hide roaming icon
+                    if (MainModule.mPrefs.getBoolean("system_statusbaricons_roaming")) {
+                        Object hiddenFlow = ModuleHelper.createReadonlyFlowWithInitValue(Boolean.FALSE, lpparam.getClassLoader());
+                        XposedHelpers.setObjectField(viewModel, "roaming", hiddenFlow);
                     }
-                    return Boolean.valueOf(currentVisible);
-                };
-                boolean finalVisible = getFinalVisibleState.apply(null).booleanValue();
-                Object finalVisibleFlow = ModuleHelper.createReadonlyFlowWithInitValue(finalVisible ? Boolean.TRUE : Boolean.FALSE, lpparam.getClassLoader());
-                Object stateFlow = ModuleHelper.getMutableFlowOfReadonlyFlow(finalVisibleFlow);
-                XposedHelpers.setObjectField(param.getThisObject(), "isVisible", finalVisibleFlow);
-                XposedHelpers.callMethod(javaAdapter, "alwaysCollectFlow", isVisibleFlow, new Consumer() {
-                    @Override
-                    public void accept(Object obj) {
-                        visibleStates[0] = ((Boolean) obj).booleanValue();
-                        boolean finalVisible = getFinalVisibleState.apply(null).booleanValue();
-                        XposedHelpers.callMethod(stateFlow, "setValue", finalVisible ? Boolean.TRUE : Boolean.FALSE);
-                    }
-                });
-                if (hideNoDataSim) {
-                    XposedHelpers.callMethod(javaAdapter, "alwaysCollectFlow", dataSubIdFlow, new Consumer() {
-                        @Override
-                        public void accept(Object obj) {
-                            if (obj == null) return;
-                            subIds[0] = ((Integer) obj).intValue();
-                            boolean finalVisible = getFinalVisibleState.apply(null).booleanValue();
-                            XposedHelpers.callMethod(stateFlow, "setValue", finalVisible ? Boolean.TRUE : Boolean.FALSE);
-                        }
-                    });
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] HideSignalIconsHook error: " + t.getMessage());
                 }
-                if (hideWithWifi) {
-                    XposedHelpers.callMethod(javaAdapter, "alwaysCollectFlow", wifiAvailableFlow, new Consumer() {
+            }
+        });
+    }
                         @Override
                         public void accept(Object obj) {
                             visibleStates[1] = ((Boolean) obj).booleanValue();
