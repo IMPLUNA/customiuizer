@@ -3199,17 +3199,6 @@ public class SystemUI {
             }
         });
     }
-                        @Override
-                        public void accept(Object obj) {
-                            visibleStates[1] = ((Boolean) obj).booleanValue();
-                            boolean finalVisible = getFinalVisibleState.apply(null).booleanValue();
-                            XposedHelpers.callMethod(stateFlow, "setValue", finalVisible ? Boolean.TRUE : Boolean.FALSE);
-                        }
-                    });
-                }
-            }
-        });
-    }
 
     private static void applySignalIconHiding(Object viewModel, Object interactor, PackageReadyParam lpparam) {
         if (MainModule.mPrefs.getBoolean("system_statusbaricons_signal") && !MainModule.mPrefs.getBoolean("system_statusbaricons_signal_wificonnected")) {
@@ -3321,7 +3310,8 @@ public class SystemUI {
 
 
     public static void HideStatusBarIconsFromSystemManagerHook(PackageReadyParam lpparam) {
-        ModuleHelper.findAndHookMethod("com.android.systemui.statusbar.CommandQueue", lpparam.getClassLoader(), "setIcon", String.class, "com.android.internal.statusbar.StatusBarIcon", new MethodHook() {
+        Class<?> StatusBarIconClass = findClassIfExists("com.android.internal.statusbar.StatusBarIcon", lpparam.getClassLoader());
+        if (StatusBarIconClass != null) ModuleHelper.findAndHookMethodSilently("com.android.systemui.statusbar.CommandQueue", lpparam.getClassLoader(), "setIcon", String.class, StatusBarIconClass, new MethodHook() {
             @Override
             protected void before(final MethodHookParam param) throws Throwable {
                 String slotName = (String)param.getArgs()[0];
