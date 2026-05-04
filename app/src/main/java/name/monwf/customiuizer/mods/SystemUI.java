@@ -1401,12 +1401,6 @@ public class SystemUI {
                     } catch (Throwable t) {
                         XposedHelpers.log("[Pengeek] DualRowSignal: interactor access failed: " + t.getMessage());
                     }
-                }
-                    } catch (Throwable t) {
-                        XposedHelpers.log("[Pengeek] DualRowSignal CellularIconVM error: " + t);
-                    }
-                }
-            });
                 } // close if (MiuiCellularIconVMClass != null)
                 } catch (Throwable t) {
                     XposedHelpers.log("[Pengeek] DualRowSignal start error: " + t);
