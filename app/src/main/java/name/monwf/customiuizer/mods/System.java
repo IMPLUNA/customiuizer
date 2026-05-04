@@ -1345,10 +1345,13 @@ public class System {
                 }
         });
 
-        ModuleHelper.hookAllMethods("com.android.systemui.statusbar.notification.row.NotificationContentInflaterInjector", lpparam.getClassLoader(), "handle3thThemeColor", new MethodHook() {
+        ModuleHelper.hookAllMethodsSilently("com.android.systemui.statusbar.notification.row.NotificationContentInflaterInjector", lpparam.getClassLoader(), "handle3thThemeColor", new MethodHook() {
             private Object sAppIconManager = null;
             @Override
             protected void before(final MethodHookParam param) throws Throwable {
+                try {
+                if (param.getArgs().length < 2) return;
+                if (!(param.getArgs()[1] instanceof Notification.Builder)) return;
                 Notification.Builder builder = (Notification.Builder) param.getArgs()[1];
                 Notification mN = (Notification) XposedHelpers.getObjectField(builder, "mN");
                 if ((boolean)XposedHelpers.callMethod(mN, "isColorized")) return;
@@ -1404,16 +1407,23 @@ public class System {
                     XposedHelpers.setAdditionalInstanceField(mN, "mNotifyBackgroundColor", bgColor);
                     param.returnAndSkip(null);
                 }
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] handle3thThemeColor error: " + t.getMessage());
+                }
             }
         });
 
-        ModuleHelper.hookAllMethods("com.android.systemui.statusbar.notification.row.NotificationContentInflaterInjector", lpparam.getClassLoader(), "createRemoteViews", new MethodHook() {
+        ModuleHelper.hookAllMethodsSilently("com.android.systemui.statusbar.notification.row.NotificationContentInflaterInjector", lpparam.getClassLoader(), "createRemoteViews", new MethodHook() {
             private int titleResId = 0;
             private int subTextResId = 0;
             @Override
             protected void after(MethodHookParam param) throws Throwable {
-                Class<?> NotificationHelper = findClass("com.miui.systemui.notification.NotificationSettingsHelper", lpparam.getClassLoader());
+                try {
+                Class<?> NotificationHelper = findClassIfExists("com.miui.systemui.notification.NotificationSettingsHelper", lpparam.getClassLoader());
+                if (NotificationHelper == null) return;
                 boolean miuiStyle = false;
+                if (param.getArgs().length < 2) return;
+                if (!(param.getArgs()[1] instanceof Notification.Builder)) return;
                 Notification.Builder builder = (Notification.Builder) param.getArgs()[1];
                 Notification notification = builder.getNotification();
                 if ((boolean)XposedHelpers.callMethod(notification, "isMediaNotification")) return;
@@ -1438,6 +1448,9 @@ public class System {
                             baseContent.setTextColor(subTextResId, (int)XposedHelpers.getAdditionalInstanceField(notification, "mSecondaryTextColor"));
                         }
                     }
+                }
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] createRemoteViews error: " + t.getMessage());
                 }
             }
         });
