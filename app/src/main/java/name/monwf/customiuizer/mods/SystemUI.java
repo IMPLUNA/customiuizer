@@ -1329,7 +1329,15 @@ public class SystemUI {
                 final Map iconsVM = getIconCache(mobileIconsViewModel);
                 if (iconsVM == null) { XposedHelpers.log("[Pengeek] DualRowSignal: no icon cache found, skipped"); return; }
                 Object mStatusBar = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.android.systemui.statusbar.phone.CentralSurfaces");
-                Object javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapter");
+                Object javaAdapter = null;
+                try {
+                    javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapter");
+                } catch (NoSuchFieldError e) {
+                    // HyperOS 2: field renamed, try alternative names
+                    try { javaAdapter = XposedHelpers.getObjectField(mStatusBar, "javaAdapter"); } catch (Throwable ignored) {}
+                    try { if (javaAdapter == null) javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapterLegacy"); } catch (Throwable ignored) {}
+                }
+                if (javaAdapter == null) { XposedHelpers.log("[Pengeek] DualRowSignal: javaAdapter not found, skipped"); return; }
                 Object dataSubIdFlow = ModuleHelper.getObjectFieldByPath(mobileIconsViewModel, "miuiInt.mobileConnectionsRepo.activeMobileDataSubscriptionId");
                 Consumer<Integer> setSignalStateConsumer = (s) -> {
                     if (subscriptionsData[0] != -1) {
@@ -3227,8 +3235,13 @@ public class SystemUI {
         visibleStates[1] = ((Boolean)XposedHelpers.callMethod(wifiAvailableFlow, "getValue")).booleanValue();
         Object mStatusBar = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.android.systemui.statusbar.phone.CentralSurfaces");
         if (mStatusBar == null) return;
-        Object javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapter");
-        if (javaAdapter == null) return;
+        Object javaAdapter = null;
+        try {
+            javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapter");
+        } catch (NoSuchFieldError e) {
+            try { javaAdapter = XposedHelpers.getObjectField(mStatusBar, "javaAdapter"); } catch (Throwable ignored) {}
+        }
+        if (javaAdapter == null) { XposedHelpers.log("[Pengeek] HideSignalIconsHook: javaAdapter not found"); return; }
         Function<Object, Boolean> getFinalVisibleState = (x) -> {
             boolean currentVisible = visibleStates[0];
             if (currentVisible && hideWithWifi && visibleStates[1]) {
@@ -4185,41 +4198,26 @@ public class SystemUI {
         });
         ModuleHelper.hookAllConstructorsSilently("com.android.systemui.statusbar.notification.icon.domain.interactor.StatusBarNotificationIconsInteractor", lpparam.getClassLoader(), new MethodHook() {
             @Override
-            protected void before(MethodHookParam param) throws Throwable {
-                Class<?> StateFlowKtClass = findClass("kotlinx.coroutines.flow.StateFlowKt", lpparam.getClassLoader());
-                Object stateFlow = XposedHelpers.callStaticMethod(StateFlowKtClass, "MutableStateFlow", Boolean.FALSE);
-                XposedHelpers.setObjectField(param.getArgs()[2], "showSilentStatusIcons", stateFlow);
-            }
-        });
-        try {
-        XposedHelpers.findAndHookMethod("com.android.systemui.statusbar.notification.icon.domain.interactor.NotificationIconsInteractor$filteredNotifSet$1$1", lpparam.getClassLoader(), "invoke", Object.class, new MethodHook() {
-            Object notifCollection = null;
-            @Override
             protected void after(MethodHookParam param) throws Throwable {
-                boolean showLowPriority = XposedHelpers.getBooleanField(param.getThisObject(), "$showLowPriority");
-                if (showLowPriority) return;
-                boolean result = ((Boolean)param.getResult()).booleanValue();
-                if (!result) return;
-                if (notifCollection == null) {
-                    Object dismissHelper = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.android.systemui.statusbar.policy.DismissNotificationHelper");
-                    notifCollection = XposedHelpers.getObjectField(dismissHelper, "notifCollection");
+                try {
+                    Object obj = param.getThisObject();
+                    // Try to find and disable any silent/low-priority icon filtering
+                    java.lang.reflect.Field[] fields = obj.getClass().getDeclaredFields();
+                    for (java.lang.reflect.Field f : fields) {
+                        if (f.getName().toLowerCase().contains("silent")) {
+                            f.setAccessible(true);
+                            Object val = f.get(obj);
+                            if (val != null) {
+                                try { XposedHelpers.callMethod(val, "setValue", Boolean.FALSE); } catch (Throwable ignored) {}
+                            }
+                        }
+                    }
+                    XposedHelpers.log("[Pengeek] NotificationImportance: hooked StatusBarNotificationIconsInteractor");
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] NotificationImportance: hook error: " + t.getMessage());
                 }
-                String notifyKey = (String) XposedHelpers.getObjectField(param.getArgs()[0], "key");
-                Object notifyEntry = XposedHelpers.callMethod(notifCollection, "getEntry", notifyKey);
-                if (notifyEntry == null) {
-                    return;
-                }
-                Object mRanking = XposedHelpers.getObjectField(notifyEntry, "mRanking");
-                int importance = (int) XposedHelpers.callMethod(mRanking, "getImportance");
-                if (importance > 1) {
-                    return;
-                }
-                param.setResult(Boolean.FALSE);
             }
         });
-        } catch (Throwable t) {
-            XposedHelpers.log("[Pengeek] NotificationIconsInteractor hook skipped: " + t.getMessage());
-        }
     }
 
     public static void RemovePackageNotificationsLimitHook(PackageReadyParam lpparam) {
