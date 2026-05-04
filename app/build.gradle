@@ -99,7 +99,6 @@ dependencies {
 //    noinspection DifferentStdlibGradleVersion
     compileOnly files('lib/framework.jar')
     compileOnly files('lib/services.jar')
-    compileOnly 'com.github.tehcneko:miui-stubs:1.0.0'
     compileOnly "io.github.libxposed:api:101.0.1"
     implementation "io.github.libxposed:service:101.0.0"
     implementation "org.apache.commons:commons-lang3:3.20.0"
