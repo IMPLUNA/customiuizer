@@ -958,7 +958,7 @@ public class SystemUI {
                 }
             }
         });
-        ModuleHelper.findAndHookMethod("com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController", lpparam.getClassLoader(), "updateLocation", new MethodHook() {
+        ModuleHelper.findAndHookMethodSilently("com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController", lpparam.getClassLoader(), "updateLocation", new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
                 try {
@@ -1465,7 +1465,7 @@ public class SystemUI {
                 }
             }
         };
-        ModuleHelper.hookAllMethods("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "access$setImageResWithTintLight", updateMobileImageHook);
+        ModuleHelper.hookAllMethodsSilently("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "access$setImageResWithTintLight", updateMobileImageHook);
 
         Class<?> MobileIconBind1 = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder$bind$1", lpparam.getClassLoader());
         if (MobileIconBind1 != null) ModuleHelper.hookAllConstructors(MobileIconBind1, new MethodHook() {
@@ -4195,7 +4195,7 @@ public class SystemUI {
     }
 
     public static void NotificationImportanceHook(PackageReadyParam lpparam) {
-        ModuleHelper.findAndHookMethod("com.android.systemui.statusbar.notification.MiuiNotificationListener", lpparam.getClassLoader(), "onSilentStatusBarIconsVisibilityChanged", boolean.class, new MethodHook() {
+        ModuleHelper.findAndHookMethodSilently("com.android.systemui.statusbar.notification.MiuiNotificationListener", lpparam.getClassLoader(), "onSilentStatusBarIconsVisibilityChanged", boolean.class, new MethodHook() {
             @Override
             protected void before(MethodHookParam param) throws Throwable {
                 param.getArgs()[0] = true;
