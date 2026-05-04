@@ -1477,78 +1477,108 @@ public class SystemUI {
                 }
             }
         };
-        // HyperOS 2: MiuiMobileIconBinder removed
-        XposedHelpers.log("[Pengeek] DualRowSignal: MiuiMobileIconBinder hooks skipped (class removed in HyperOS 2)");
-            @Override
-            protected void after(MethodHookParam param) throws Throwable {
-                try {
-                Object viewModel = XposedHelpers.getObjectField(param.getThisObject(), "$viewModel");
-                String mobileViewModelClassName = viewModel.getClass().getName();
-                if (mobileViewModelClassName.contains("ShadeCarrierGroupMobileIconViewMode")) return;
-                ImageView mMobile = (ImageView) XposedHelpers.getObjectField(param.getThisObject(), "$mobile");
-                ViewGroup mobileView = (ViewGroup) mMobile.getParent();
-                ImageView subMobile = mobileView.findViewById(SUBMOBILE_ID);
-                if (subMobile != null) {
-                    List tintViewList = (List) XposedHelpers.getObjectField(param.getThisObject(), "$tintViewList");
-                    ArrayList tintViewListMore = new ArrayList(tintViewList);
-                    tintViewListMore.add(subMobile);
-                    XposedHelpers.setObjectField(param.getThisObject(), "$tintViewList", tintViewListMore);
-                }
-                } catch (Throwable t) {
-                    XposedHelpers.log("[Pengeek] DualRowSignal bind$1 error: " + t);
-                }
+        // HyperOS 2: MiuiMobileIconBinder removed, implement dual-row via MiuiPhoneStatusBarView
+        try {
+            Class<?> PhoneStatusBarClass = findClassIfExists("com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView", lpparam.getClassLoader());
+            if (PhoneStatusBarClass == null) {
+                XposedHelpers.log("[Pengeek] DualRowSignal: MiuiPhoneStatusBarView not found");
+                return;
             }
-        });
+            ModuleHelper.findAndHookMethod(PhoneStatusBarClass, "onFinishInflate", new MethodHook() {
+                @Override
+                protected void after(MethodHookParam param) throws Throwable {
+                    try {
+                        View statusBarView = (View) param.getThisObject();
+                        Context ctx = statusBarView.getContext();
 
-        Class<?> AlphaOptimizedImageView = findClassIfExists("com.android.systemui.statusbar.AlphaOptimizedImageView", lpparam.getClassLoader());
-        MethodHook initHook = new MethodHook() {
-            @Override
-            protected void after(final MethodHookParam param) throws Throwable {
-                try {
-                String mobileViewModelClassName = param.getArgs()[1].getClass().getName();
-                if (mobileViewModelClassName.contains("ShadeCarrierGroupMobileIconViewMode")) return;
-                int rightMargin = MainModule.mPrefs.getInt("system_statusbar_dualsimin2rows_rightmargin", 0);
-                int leftMargin = MainModule.mPrefs.getInt("system_statusbar_dualsimin2rows_leftmargin", 0);
-                int iconScale = MainModule.mPrefs.getInt("system_statusbar_dualsimin2rows_scale", 10);
-                int verticalOffset = MainModule.mPrefs.getInt("system_statusbar_dualsimin2rows_verticaloffset", 8);
-                ViewGroup mobileViewOuter = (ViewGroup) param.getArgs()[0];
-                int mobileViewId = mobileViewOuter.getResources().getIdentifier("mobile_group", "id", "com.android.systemui");
-                LinearLayout mobileView = mobileViewOuter.findViewById(mobileViewId);
-                int rightSpacing = (int) Helpers.dp2px(rightMargin * 0.5f);
-                int leftSpacing = (int) Helpers.dp2px(leftMargin * 0.5f);
-                mobileView.setPadding(leftSpacing, 0, rightSpacing, 0);
-                int mobileSignalId = mobileViewOuter.getResources().getIdentifier("mobile_signal", "id", "com.android.systemui");
-                View mMobile = mobileView.findViewById(mobileSignalId);
-                FrameLayout signalWrapper = (FrameLayout) mMobile.getParent();
-                ImageView subMobile = (ImageView) XposedHelpers.newInstance(AlphaOptimizedImageView, mobileViewOuter.getContext());
-                signalWrapper.addView(subMobile);
-                subMobile.setAdjustViewBounds(true);
-                subMobile.setId(SUBMOBILE_ID);
-                if (verticalOffset != 8) {
-                    float marginTop = Helpers.dp2px((verticalOffset - 8) * 0.5f);
-                    signalWrapper.setTranslationY(marginTop);
+                        // Create dual-signal container (vertical layout)
+                        LinearLayout dualContainer = new LinearLayout(ctx);
+                        dualContainer.setOrientation(LinearLayout.VERTICAL);
+                        dualContainer.setGravity(Gravity.CENTER);
+                        dualContainer.setId(SUBMOBILE_ID);
+                        LinearLayout.LayoutParams containerLp = new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.MATCH_PARENT
+                        );
+                        dualContainer.setLayoutParams(containerLp);
+
+                        // Slot 1 signal text (top)
+                        TextView slot1Text = new TextView(ctx);
+                        slot1Text.setTextColor(Color.WHITE);
+                        slot1Text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 7);
+                        slot1Text.setGravity(Gravity.CENTER);
+                        slot1Text.setTag("dual_signal_slot1");
+                        dualContainer.addView(slot1Text);
+
+                        // Slot 2 signal text (bottom)
+                        TextView slot2Text = new TextView(ctx);
+                        slot2Text.setTextColor(Color.WHITE);
+                        slot2Text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 7);
+                        slot2Text.setGravity(Gravity.CENTER);
+                        slot2Text.setTag("dual_signal_slot2");
+                        dualContainer.addView(slot2Text);
+
+                        // Find signal icon container to insert into
+                        int mobileGroupId = ctx.getResources().getIdentifier("mobile_group", "id", "com.android.systemui");
+                        if (mobileGroupId != 0) {
+                            ViewGroup mobileGroup = statusBarView.findViewById(mobileGroupId);
+                            if (mobileGroup != null) {
+                                mobileGroup.addView(dualContainer, 0);
+                                XposedHelpers.setAdditionalInstanceField(statusBarView, "dualSignalContainer", dualContainer);
+                                XposedHelpers.log("[Pengeek] DualRowSignal: view added to mobile_group");
+                            }
+                        }
+
+                        // Start monitoring signal strength
+                        startDualSignalMonitor(ctx, slot1Text, slot2Text);
+                    } catch (Throwable t) {
+                        XposedHelpers.log("[Pengeek] DualRowSignal view creation error: " + t.getMessage());
+                    }
                 }
-                FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) mMobile.getLayoutParams();
-                layoutParams.width = -2;
-                if (iconScale != 10) {
-                    int mIconHeight = (int) Helpers.dp2px(2.0f * iconScale);
-                    layoutParams.height = mIconHeight;
-                    layoutParams.gravity = Gravity.CENTER;
+            });
+        } catch (Throwable t) {
+            XposedHelpers.log("[Pengeek] DualRowSignal View hook error: " + t.getMessage());
+        }
+    }
+
+    private static void startDualSignalMonitor(Context ctx, TextView slot1, TextView slot2) {
+        try {
+            android.telephony.TelephonyManager tm = (android.telephony.TelephonyManager) ctx.getSystemService(Context.TELEPHONY_SERVICE);
+            if (tm == null) return;
+
+            android.telephony.PhoneStateListener listener = new android.telephony.PhoneStateListener() {
+                @Override
+                public void onSignalStrengthsChanged(android.telephony.SignalStrength signalStrength) {
+                    try {
+                        java.util.List<android.telephony.CellSignalStrength> cells = signalStrength.getCellSignalStrengths();
+                        int slot1Dbm = -999;
+                        int slot2Dbm = -999;
+                        for (android.telephony.CellSignalStrength cell : cells) {
+                            int dbm = cell.getDbm();
+                            if (dbm > -200 && dbm < 0) {
+                                if (slot1Dbm == -999) slot1Dbm = dbm;
+                                else if (slot2Dbm == -999) slot2Dbm = dbm;
+                            }
+                        }
+                        final int s1 = slot1Dbm;
+                        final int s2 = slot2Dbm;
+                        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                        mainHandler.post(() -> {
+                            if (s1 > -999) slot1.setText(s1 + "dBm");
+                            else slot1.setText("");
+                            if (s2 > -999) slot2.setText(s2 + "dBm");
+                            else slot2.setText("");
+                        });
+                    } catch (Throwable t) {
+                        XposedHelpers.log("[Pengeek] DualSignal update error: " + t.getMessage());
+                    }
                 }
-                else {
-                    layoutParams.height = -1;
-                }
-                mMobile.setLayoutParams(layoutParams);
-                subMobile.setLayoutParams(layoutParams);
-                int subId = XposedHelpers.getIntField(mobileViewOuter, "subId");
-                ModuleHelper.setViewInfo(mMobile, "subId", subId);
-                } catch (Throwable t) {
-                    XposedHelpers.log("[Pengeek] DualRowSignal bind error: " + t);
-                }
-            }
-        };
-        // HyperOS 2: MiuiMobileIconBinder removed, skip View-level bind hook
-        XposedHelpers.log("[Pengeek] DualRowSignal: MiuiMobileIconBinder skipped (class removed in HyperOS 2)");
+            };
+            tm.listen(listener, android.telephony.PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+            XposedHelpers.log("[Pengeek] DualRowSignal: signal monitor started");
+        } catch (Throwable t) {
+            XposedHelpers.log("[Pengeek] DualRowSignal monitor error: " + t.getMessage());
+        }
     }
 
     public static void StatusBarIconsPositionAdjustHook(PackageReadyParam lpparam, boolean moveLeft) {
