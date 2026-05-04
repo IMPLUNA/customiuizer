@@ -75,7 +75,8 @@ public class ResourceHooks {
 	public ResourceHooks() {}
 
 	private void initThemeHook() {
-		ModuleHelper.findAndHookMethod(miui.content.res.ThemeResources.class, "mergeThemeValues", String.class, miui.content.res.ThemeValues.class, new MethodHook() {
+		try {
+		ModuleHelper.findAndHookMethod("miui.content.res.ThemeResources", null, "mergeThemeValues", String.class, "miui.content.res.ThemeValues", new MethodHook() {
 			@Override
 			protected void after(MethodHookParam param) throws Throwable {
 				String mPackageName = (String) XposedHelpers.getObjectField(param.getThisObject(), "mPackageName");
@@ -127,12 +128,9 @@ public class ResourceHooks {
 				}
 			}
 		});
-	}
-
-	private void initResourceIdHook(String pkg, String type, String name, ReplacementType resourceType, Object replaceValue) {
-		Context mContext = ModuleHelper.findContext();
-		ResourceValue rv = new ResourceValue(resourceType, replaceValue);
-		if (mContext != null) {
+		} catch (Throwable t) {
+			XposedHelpers.log("[Pengeek] initThemeHook failed: " + t.getMessage());
+		}
 			int resId = mContext.getResources().getIdentifier(name, type, pkg);
 			if (resId > 0) resourceIdReplacements.put(resId, rv);
 			else {

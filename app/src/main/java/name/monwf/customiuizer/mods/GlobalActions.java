@@ -659,7 +659,7 @@ public class GlobalActions {
             }
         });
 
-        ModuleHelper.findAndHookMethod("com.android.wm.shell.multitasking.miuifreeform.MiuiFreeformModeController", lpparam.getClassLoader(), "onInit", new MethodHook() {
+        ModuleHelper.findAndHookMethodSilently("com.android.wm.shell.multitasking.miuifreeform.MiuiFreeformModeController", lpparam.getClassLoader(), "onInit", new MethodHook() {
             @Override
             protected void after(final MethodHookParam param) throws Throwable {
                 Context mContext = (Context)XposedHelpers.getObjectField(param.getThisObject(), "mContext");
