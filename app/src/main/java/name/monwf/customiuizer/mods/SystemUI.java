@@ -1205,13 +1205,15 @@ public class SystemUI {
         HashMap<String, Integer> lightIconName2IdMap = new HashMap<String, Integer>();
         SparseIntArray signalResToLevelMap = new SparseIntArray();
         String selectedIconStyle = MainModule.mPrefs.getString("system_statusbar_dualsimin2rows_style", "");
-        Class<?> IconsClass = findClass("com.android.systemui.statusbar.Icons", lpparam.getClassLoader());
+        Class<?> IconsClass = findClassIfExists("com.android.systemui.statusbar.Icons", lpparam.getClassLoader());
         ModuleHelper.findAndHookMethod("com.android.systemui.SystemUIApplication", lpparam.getClassLoader(), "onCreate", new MethodHook() {
             @Override
             protected void after(final MethodHookParam param) throws Throwable {
+                try {
                 Context mContext = (Context) XposedHelpers.callMethod(param.getThisObject(), "getApplicationContext");
                 Resources modRes = ModuleHelper.getModuleRes(mContext);
                 String styleSuffix = !selectedIconStyle.isEmpty() ? ("_" + selectedIconStyle) : "";
+                if (IconsClass == null) { XposedHelpers.log("[Pengeek] DualRowSignal: Icons class not found"); return; }
                 Map sTintIconMap = (Map) XposedHelpers.getStaticObjectField(IconsClass, "sTintIconMap");
                 Map sDarkIconMap = (Map) XposedHelpers.getStaticObjectField(IconsClass, "sDarkIconMap");
                 for (int slot = 1; slot <= 2; slot++) {
@@ -1250,6 +1252,9 @@ public class SystemUI {
                 signalResToLevelMap.put(res.getIdentifier("stat_sys_signal_4", "drawable", lpparam.getPackageName()), 4);
                 signalResToLevelMap.put(res.getIdentifier("stat_sys_signal_5", "drawable", lpparam.getPackageName()), 5);
                 signalResToLevelMap.put(res.getIdentifier("stat_sys_signal_null", "drawable", lpparam.getPackageName()), 0);
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] DualRowSignal onCreate error: " + t);
+                }
             }
         });
 
@@ -1259,6 +1264,7 @@ public class SystemUI {
         ModuleHelper.findAndHookMethod("com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter", lpparam.getClassLoader(), "start", new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
+                try {
                 final SparseIntArray subIdLevels = new SparseIntArray();
                 Object mobileIconsViewModel = XposedHelpers.getObjectField(param.getThisObject(), "mobileIconsViewModel");
                 Map iconsVM = (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "reuseCache");
@@ -1306,6 +1312,7 @@ public class SystemUI {
                 ModuleHelper.hookAllConstructors("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader(), new MethodHook() {
                     @Override
                     protected void after(MethodHookParam param) throws Throwable {
+                        try {
                         int subId = XposedHelpers.getIntField(param.getArgs()[0], "subscriptionId");
                         Object iconViewModel = param.getThisObject();
                         Object originIconIdFlow = XposedHelpers.getObjectField(iconViewModel, "signalIconId");
@@ -1333,10 +1340,13 @@ public class SystemUI {
                         });
                     }
                 });
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] DualRowSignal start error: " + t);
+                }
             }
         });
 
-        Class<?> MiuiStatusBarIconViewHelperClass = findClass("com.android.systemui.statusbar.MiuiStatusBarIconViewHelper", lpparam.getClassLoader());
+        Class<?> MiuiStatusBarIconViewHelperClass = findClassIfExists("com.android.systemui.statusbar.MiuiStatusBarIconViewHelper", lpparam.getClassLoader());
         MethodHook updateMobileImageHook = new MethodHook() {
             int mobileSignalId = -1;
             @Override
@@ -1373,24 +1383,38 @@ public class SystemUI {
                     String sim2IconId = "statusbar_signal_2_" + subLevel + styleSuffix;
                     int sim1LightResId = lightIconName2IdMap.get(sim1IconId);
                     mMobile.setTag(Integer.valueOf(sim1LightResId));
-                    int sim1FinalResId = (int) XposedHelpers.callStaticMethod(MiuiStatusBarIconViewHelperClass, "transformResId", sim1LightResId, mUseTint, mLight);
+                    int sim1FinalResId;
+                    if (MiuiStatusBarIconViewHelperClass != null) {
+                        sim1FinalResId = (int) XposedHelpers.callStaticMethod(MiuiStatusBarIconViewHelperClass, "transformResId", sim1LightResId, mUseTint, mLight);
+                    } else {
+                        sim1FinalResId = sim1LightResId;
+                    }
                     mMobile.setImageResource(sim1FinalResId);
                     if (subMobile != null) {
                         int sim2LightResId = lightIconName2IdMap.get(sim2IconId);
-                        int sim2FinalResId = (int) XposedHelpers.callStaticMethod(MiuiStatusBarIconViewHelperClass, "transformResId", sim2LightResId, mUseTint, mLight);
+                        int sim2FinalResId;
+                        if (MiuiStatusBarIconViewHelperClass != null) {
+                            sim2FinalResId = (int) XposedHelpers.callStaticMethod(MiuiStatusBarIconViewHelperClass, "transformResId", sim2LightResId, mUseTint, mLight);
+                        } else {
+                            sim2FinalResId = sim2LightResId;
+                        }
                         subMobile.setTag(Integer.valueOf(sim2LightResId));
                         subMobile.setImageResource(sim2FinalResId);
                     }
                     param.returnAndSkip(null);
                 }
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] DualRowSignal updateMobileImage error: " + t);
+                }
             }
         };
         ModuleHelper.hookAllMethods("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "access$setImageResWithTintLight", updateMobileImageHook);
 
-        Class<?> MobileIconBind1 = findClass("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder$bind$1", lpparam.getClassLoader());
-        ModuleHelper.hookAllConstructors(MobileIconBind1, new MethodHook() {
+        Class<?> MobileIconBind1 = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder$bind$1", lpparam.getClassLoader());
+        if (MobileIconBind1 != null) ModuleHelper.hookAllConstructors(MobileIconBind1, new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
+                try {
                 Object viewModel = XposedHelpers.getObjectField(param.getThisObject(), "$viewModel");
                 String mobileViewModelClassName = viewModel.getClass().getName();
                 if (mobileViewModelClassName.contains("ShadeCarrierGroupMobileIconViewMode")) return;
@@ -1403,13 +1427,17 @@ public class SystemUI {
                     tintViewListMore.add(subMobile);
                     XposedHelpers.setObjectField(param.getThisObject(), "$tintViewList", tintViewListMore);
                 }
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] DualRowSignal bind$1 error: " + t);
+                }
             }
         });
 
-        Class<?> AlphaOptimizedImageView = findClass("com.android.systemui.statusbar.AlphaOptimizedImageView", lpparam.getClassLoader());
+        Class<?> AlphaOptimizedImageView = findClassIfExists("com.android.systemui.statusbar.AlphaOptimizedImageView", lpparam.getClassLoader());
         MethodHook initHook = new MethodHook() {
             @Override
             protected void after(final MethodHookParam param) throws Throwable {
+                try {
                 String mobileViewModelClassName = param.getArgs()[1].getClass().getName();
                 if (mobileViewModelClassName.contains("ShadeCarrierGroupMobileIconViewMode")) return;
                 int rightMargin = MainModule.mPrefs.getInt("system_statusbar_dualsimin2rows_rightmargin", 0);
@@ -1447,6 +1475,9 @@ public class SystemUI {
                 subMobile.setLayoutParams(layoutParams);
                 int subId = XposedHelpers.getIntField(mobileViewOuter, "subId");
                 ModuleHelper.setViewInfo(mMobile, "subId", subId);
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] DualRowSignal bind error: " + t);
+                }
             }
         };
         ModuleHelper.hookAllMethods("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "bind", initHook);
