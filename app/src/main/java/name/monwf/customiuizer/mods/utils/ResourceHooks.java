@@ -131,6 +131,12 @@ public class ResourceHooks {
 		} catch (Throwable t) {
 			XposedHelpers.log("[Pengeek] initThemeHook failed: " + t.getMessage());
 		}
+	}
+
+	private void initResourceIdHook(String pkg, String type, String name, ReplacementType resourceType, Object replaceValue) {
+		Context mContext = ModuleHelper.findContext();
+		ResourceValue rv = new ResourceValue(resourceType, replaceValue);
+		if (mContext != null) {
 			int resId = mContext.getResources().getIdentifier(name, type, pkg);
 			if (resId > 0) resourceIdReplacements.put(resId, rv);
 			else {
