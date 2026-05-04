@@ -30,9 +30,9 @@ android {
     }
     defaultConfig {
         applicationId "name.monwf.customiuizer"
-        minSdkVersion 35
+        minSdkVersion 34
         //noinspection OldTargetApi,ExpiredTargetSdkVersion
-        targetSdkVersion 35
+        targetSdkVersion 34
         compileSdk 36
         versionCode lastVersion
         versionName lastVersionName
