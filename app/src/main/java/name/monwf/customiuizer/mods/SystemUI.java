@@ -27,6 +27,7 @@ import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Insets;
@@ -2266,10 +2267,6 @@ public class SystemUI {
         };
         // HyperOS 2: MiuiMobileIconBinder removed, skip
         XposedHelpers.log("[Pengeek] MiuiMobileIconBinder bind hooks skipped");
-        Field tintLightColorFlow = XposedHelpers.findFieldIfExists(MobileIconBind1, "$tintLightColorFlow");
-        if (tintLightColorFlow == null) {
-            onMobileIconDarkChanged(lpparam);
-        }
     }
 
     private static float blurCollapsed = 0.0f;
