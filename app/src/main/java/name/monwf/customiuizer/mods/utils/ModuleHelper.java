@@ -331,7 +331,22 @@ public class ModuleHelper {
     public static Object getDepInstance(ClassLoader classLoader, String className) {
         Class<?> DependencyClass = findClass("com.android.systemui.Dependency", classLoader);
         Object sDependency = XposedHelpers.getStaticObjectField(DependencyClass, "sDependency");
-        return XposedHelpers.callMethod(sDependency, "getDependencyInner", findClass(className, classLoader));
+        Class<?> targetClass = findClass(className, classLoader);
+        // HyperOS 2 removed getDependencyInner, try alternatives
+        try {
+            return XposedHelpers.callMethod(sDependency, "getDependencyInner", targetClass);
+        } catch (Throwable t1) {
+            try {
+                return XposedHelpers.callMethod(sDependency, "get", targetClass);
+            } catch (Throwable t2) {
+                try {
+                    return XposedHelpers.callMethod(DependencyClass, "get", targetClass);
+                } catch (Throwable t3) {
+                    XposedHelpers.log("[Pengeek] getDepInstance failed for " + className + ": " + t3.getMessage());
+                    return null;
+                }
+            }
+        }
     }
 
     public static Object getViewInfo(View view, String key) {

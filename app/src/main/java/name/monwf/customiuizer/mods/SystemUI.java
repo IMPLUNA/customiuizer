@@ -837,11 +837,9 @@ public class SystemUI {
 
                 ViewGroup rightContainer = (ViewGroup) XposedHelpers.getObjectField(param.getThisObject(), "mSystemIconArea");
                 View mFullscreenStatusBarNotificationIconArea = (View) XposedHelpers.getObjectField(param.getThisObject(), "mFullscreenStatusBarNotificationIconArea");
-                rightContainer.removeView(mFullscreenStatusBarNotificationIconArea);
-                secondLeft.addView(mFullscreenStatusBarNotificationIconArea);
+                safeAddView(secondLeft, mFullscreenStatusBarNotificationIconArea, -1);
                 View mDripStatusBarNotificationIconArea = (View) XposedHelpers.getObjectField(param.getThisObject(), "mDripStatusBarNotificationIconArea");
-                leftContainer.removeView(mDripStatusBarNotificationIconArea);
-                secondLeft.addView(mDripStatusBarNotificationIconArea);
+                safeAddView(secondLeft, mDripStatusBarNotificationIconArea, -1);
 
                 leftGroup.setOrientation(LinearLayout.VERTICAL);
                 LinearLayout.LayoutParams leftLp = new LinearLayout.LayoutParams(-1, 0, 1);
@@ -868,8 +866,7 @@ public class SystemUI {
                 int rightChildCount = rightContainer.getChildCount();
                 for (int i = rightChildCount - 1; i >= 0; i--) {
                     View child = rightContainer.getChildAt(i);
-                    rightContainer.removeView(child);
-                    firstRight.addView(child, 0);
+                    safeAddView(firstRight, child, 0);
                 }
 
                 int resSystemIconsId = sbView.getResources().getIdentifier("system_icons", "id", lpparam.getPackageName());
@@ -984,6 +981,15 @@ public class SystemUI {
                 }
             }
         });
+    }
+
+    private static void safeAddView(ViewGroup parent, View child, int index) {
+        if (child == null) return;
+        if (child.getParent() instanceof ViewGroup) {
+            ((ViewGroup) child.getParent()).removeView(child);
+        }
+        if (index >= 0) parent.addView(child, index);
+        else parent.addView(child);
     }
 
     private static void initDigitalSignalView(Context mContext, TextView digitalTextView) {
