@@ -18,21 +18,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download framework.jar from Release
+      - name: Download framework JARs from Release
         run: |
+          BASE_URL="https://github.com/${{ github.repository }}/releases/latest/download"
           mkdir -p app/lib
-          curl -fSL \
-            -o app/lib/framework.jar \
-            "https://github.com/${{ github.repository }}/releases/latest/download/framework.jar"
-          echo "=== File info ==="
-          ls -lh app/lib/framework.jar
-          file app/lib/framework.jar
-          echo "=== Checking MIUI classes in framework.jar ==="
-          jar tf app/lib/framework.jar | grep -i "miui" | head -30
-          echo "=== Checking MiuiMultiWindowUtils ==="
-          jar tf app/lib/framework.jar | grep -i "MiuiMultiWindowUtils" || echo "NOT FOUND!"
-          echo "=== Total MIUI classes count ==="
-          jar tf app/lib/framework.jar | grep -ic "miui" || echo "0"
+
+          for JAR in framework.jar services.jar; do
+            echo "=== Downloading $JAR ==="
+            curl -fSL -o "app/lib/$JAR" "$BASE_URL/$JAR" || { echo "FAILED to download $JAR"; exit 1; }
+            ls -lh "app/lib/$JAR"
+          done
+
+          echo "=== Verifying JAR files ==="
+          for JAR in app/lib/*.jar; do
+            file "$JAR"
+          done
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -112,21 +112,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download framework.jar from Release
+      - name: Download framework JARs from Release
         run: |
+          BASE_URL="https://github.com/${{ github.repository }}/releases/latest/download"
           mkdir -p app/lib
-          curl -fSL \
-            -o app/lib/framework.jar \
-            "https://github.com/${{ github.repository }}/releases/latest/download/framework.jar"
-          echo "=== File info ==="
-          ls -lh app/lib/framework.jar
-          file app/lib/framework.jar
-          echo "=== Checking MIUI classes in framework.jar ==="
-          jar tf app/lib/framework.jar | grep -i "miui" | head -30
-          echo "=== Checking MiuiMultiWindowUtils ==="
-          jar tf app/lib/framework.jar | grep -i "MiuiMultiWindowUtils" || echo "NOT FOUND!"
-          echo "=== Total MIUI classes count ==="
-          jar tf app/lib/framework.jar | grep -ic "miui" || echo "0"
+
+          for JAR in framework.jar services.jar; do
+            echo "=== Downloading $JAR ==="
+            curl -fSL -o "app/lib/$JAR" "$BASE_URL/$JAR" || { echo "FAILED to download $JAR"; exit 1; }
+            ls -lh "app/lib/$JAR"
+          done
+
+          echo "=== Verifying JAR files ==="
+          for JAR in app/lib/*.jar; do
+            file "$JAR"
+          done
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4

@@ -25,4 +25,4 @@ app/develop/
 keystore.properties
 
 # Build dependencies (downloaded from Release at CI time)
-app/lib/framework.jar
+app/lib/*.jar
