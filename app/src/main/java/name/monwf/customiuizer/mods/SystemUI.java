@@ -792,6 +792,7 @@ public class SystemUI {
         ModuleHelper.findAndHookMethod("com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView", lpparam.getClassLoader(), "onFinishInflate", new MethodHook() {
             @Override
             protected void after(final MethodHookParam param) throws Throwable {
+                try {
                 int firstRowLeftPadding = 0;
                 int firstRowRightPadding = 0;
                 if (MainModule.mPrefs.getBoolean("system_statusbar_dualrows_firstrow_horizmargin")) {
@@ -927,15 +928,20 @@ public class SystemUI {
                         }
                     });
                 }
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] DualRows onFinishInflate error: " + t);
+                }
             }
         });
 
         ModuleHelper.hookAllMethods("com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView", lpparam.getClassLoader(), "updateCutoutLocation", new MethodHook(-1000) {
             @Override
             protected void after(final MethodHookParam param) throws Throwable {
+                try {
                 int mCurrentStatusBarType = (int) XposedHelpers.getObjectField(param.getThisObject(), "mCurrentStatusBarType");
                 LinearLayout leftLayout = (LinearLayout) XposedHelpers.getAdditionalInstanceField(param.getThisObject(), "leftLayout");
                 LinearLayout rightLayout = (LinearLayout) XposedHelpers.getAdditionalInstanceField(param.getThisObject(), "rightLayout");
+                if (leftLayout == null || rightLayout == null) return;
 
                 if (mCurrentStatusBarType == 0) {
                     int leftWidth = MainModule.mPrefs.getInt("system_statusbar_dualrows_left_ratio", 4);
@@ -950,11 +956,15 @@ public class SystemUI {
                     LinearLayout.LayoutParams rightLayoutLp = new LinearLayout.LayoutParams(0, -1, 1);
                     rightLayout.setLayoutParams(rightLayoutLp);
                 }
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] DualRows updateCutoutLocation error: " + t);
+                }
             }
         });
         ModuleHelper.findAndHookMethod("com.android.systemui.controlcenter.shade.ControlCenterHeaderExpandController", lpparam.getClassLoader(), "updateLocation", new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
+                try {
                 int[] realStatusBarLocation = (int[]) XposedHelpers.getObjectField(param.getThisObject(), "realStatusBarLocation");
                 int[] normalControlStatusIconsLocation = (int[]) XposedHelpers.getObjectField(param.getThisObject(), "normalControlStatusIconsLocation");
                 View realStatusIcons = (View) XposedHelpers.getObjectField(param.getThisObject(), "realStatusIcons");
@@ -968,6 +978,9 @@ public class SystemUI {
                 int fiexedNormalControlStatusBarTranslationY = (realStatusIcons.getHeight() / 2 + realStatusBarLocation[1]) - (controlCenterStatusIcons.getHeight() / 2 + normalControlStatusIconsLocation[1]);
                 if (normalControlStatusBarTranslationY != fiexedNormalControlStatusBarTranslationY) {
                     XposedHelpers.setObjectField(param.getThisObject(), "normalControlStatusBarTranslationY", fiexedNormalControlStatusBarTranslationY);
+                }
+                } catch (Throwable t) {
+                    XposedHelpers.log("[Pengeek] DualRows updateLocation error: " + t);
                 }
             }
         });

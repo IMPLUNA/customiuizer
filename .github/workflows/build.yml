@@ -47,7 +47,7 @@ jobs:
         run: yes | sdkmanager --licenses || true
 
       - name: Install SDK Platforms & Build Tools
-        run: sdkmanager "platforms;android-35" "platforms;android-36" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-34" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Generate signing keystore
         env:
@@ -141,7 +141,7 @@ jobs:
         run: yes | sdkmanager --licenses || true
 
       - name: Install SDK Platforms & Build Tools
-        run: sdkmanager "platforms;android-35" "platforms;android-36" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-34" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Generate signing keystore
         env:
