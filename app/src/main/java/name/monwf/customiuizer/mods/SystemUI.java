@@ -1338,8 +1338,11 @@ public class SystemUI {
                                 }
                             }
                         });
+                    } catch (Throwable t) {
+                        XposedHelpers.log("[Pengeek] DualRowSignal CellularIconVM error: " + t);
                     }
-                });
+                }
+            });
                 } catch (Throwable t) {
                     XposedHelpers.log("[Pengeek] DualRowSignal start error: " + t);
                 }
@@ -1351,6 +1354,7 @@ public class SystemUI {
             int mobileSignalId = -1;
             @Override
             protected void before(MethodHookParam param) throws Throwable {
+                try {
                 ImageView mMobile = (ImageView) param.getArgs()[0];
                 if (mobileSignalId == -1) {
                     mobileSignalId = mMobile.getResources().getIdentifier("mobile_signal", "id", "com.android.systemui");
