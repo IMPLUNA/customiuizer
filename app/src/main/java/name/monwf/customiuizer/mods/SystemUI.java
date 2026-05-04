@@ -1211,15 +1211,20 @@ public class SystemUI {
                 try {
                     Class<?> c = Class.forName(cls, false, cl);
                     sb.append("\n  FOUND: ").append(cls);
-                    // log fields
+                    // log ALL fields and methods
                     java.lang.reflect.Field[] fields = c.getDeclaredFields();
                     for (java.lang.reflect.Field f : fields) {
-                        if (f.getName().contains("signal") || f.getName().contains("visible")
-                            || f.getName().contains("roam") || f.getName().contains("type")
-                            || f.getName().contains("Indicator") || f.getName().contains("Visible")
-                        ) {
-                            sb.append("\n    field: ").append(f.getName()).append(" : ").append(f.getType().getSimpleName());
+                        sb.append("\n    field: ").append(f.getName()).append(" : ").append(f.getType().getSimpleName());
+                    }
+                    java.lang.reflect.Method[] methods = c.getDeclaredMethods();
+                    for (java.lang.reflect.Method m : methods) {
+                        sb.append("\n    method: ").append(m.getName()).append("(");
+                        Class<?>[] params = m.getParameterTypes();
+                        for (int i = 0; i < params.length; i++) {
+                            if (i > 0) sb.append(", ");
+                            sb.append(params[i].getSimpleName());
                         }
+                        sb.append(") -> ").append(m.getReturnType().getSimpleName());
                     }
                 } catch (ClassNotFoundException e) {
                     sb.append("\n  MISS: ").append(cls);
@@ -1361,6 +1366,18 @@ public class SystemUI {
                 if (MiuiCellularIconVMClass == null) MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiMobileIconsViewModel", lpparam.getClassLoader());
                 if (MiuiCellularIconVMClass == null) MiuiCellularIconVMClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
                 if (MiuiCellularIconVMClass != null) {
+                XposedHelpers.log("[Pengeek] DualRowSignal: found VM class: " + MiuiCellularIconVMClass.getName());
+                // Dump constructor params
+                for (java.lang.reflect.Constructor<?> ctor : MiuiCellularIconVMClass.getDeclaredConstructors()) {
+                    StringBuilder cbs = new StringBuilder("[Pengeek]   ctor(");
+                    Class<?>[] params = ctor.getParameterTypes();
+                    for (int i = 0; i < params.length; i++) {
+                        if (i > 0) cbs.append(", ");
+                        cbs.append(params[i].getSimpleName());
+                    }
+                    cbs.append(")");
+                    XposedHelpers.log(cbs.toString());
+                }
                 ModuleHelper.hookAllConstructors(MiuiCellularIconVMClass, new MethodHook() {
                     @Override
                     protected void after(MethodHookParam param) throws Throwable {
@@ -1537,6 +1554,24 @@ public class SystemUI {
                 }
             }
         };
+        // Diagnostic: dump all methods of MiuiMobileIconBinder to find the real method name
+        try {
+            Class<?> binderClass = XposedHelpers.findClass("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader());
+            java.lang.reflect.Method[] methods = binderClass.getDeclaredMethods();
+            StringBuilder sb = new StringBuilder("[Pengeek] MiuiMobileIconBinder methods:");
+            for (java.lang.reflect.Method m : methods) {
+                sb.append("\n  ").append(m.getName()).append("(");
+                Class<?>[] params = m.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(params[i].getSimpleName());
+                }
+                sb.append(") -> ").append(m.getReturnType().getSimpleName());
+            }
+            XposedHelpers.log(sb.toString());
+        } catch (Throwable t) {
+            XposedHelpers.log("[Pengeek] MiuiMobileIconBinder class dump failed: " + t.getMessage());
+        }
         ModuleHelper.hookAllMethods("com.android.systemui.statusbar.pipeline.mobile.ui.binder.MiuiMobileIconBinder", lpparam.getClassLoader(), "bind", initHook);
     }
 
