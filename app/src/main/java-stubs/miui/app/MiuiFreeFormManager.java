@@ -12,5 +12,7 @@ public class MiuiFreeFormManager {
     }
 
     public static class MiuiFreeFormStackInfo {
+        public String packageName;
+        public int taskId;
     }
 }
