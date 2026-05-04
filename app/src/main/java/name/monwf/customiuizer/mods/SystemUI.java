@@ -3131,25 +3131,10 @@ public class SystemUI {
         if (MiuiCellularIconVM == null) MiuiCellularIconVM = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MiuiCellularIconVM", lpparam.getClassLoader());
         if (MiuiCellularIconVM == null) {
             XposedHelpers.log("[Pengeek] HideSignalIconsHook: no mobile ViewModel found, feature disabled");
-                return;
-            }
-            XposedHelpers.log("[Pengeek] HideSignalIconsHook: using MiuiMobileIconVMImpl fallback");
-            // For MiuiMobileIconVMImpl, hook constructors and use getCellProvider() to get the actual VM
-            ModuleHelper.hookAllConstructors(MiuiMobileIconVMImpl, new MethodHook() {
-                @Override
-                protected void after(MethodHookParam param) throws Throwable {
-                    try {
-                        Object cellProvider = XposedHelpers.callMethod(param.getThisObject(), "getCellProvider");
-                        if (cellProvider == null) return;
-                        applySignalIconHiding(cellProvider, param.getArgs()[2], lpparam);
-                    } catch (Throwable t) {
-                        XposedHelpers.log("[Pengeek] HideSignalIconsHook fallback error: " + t.getMessage());
-                    }
-                }
-            });
             return;
         }
-        if (MiuiCellularIconVM != null) ModuleHelper.hookAllConstructors(MiuiCellularIconVM, new MethodHook() {
+        XposedHelpers.log("[Pengeek] HideSignalIconsHook: using " + MiuiCellularIconVM.getName());
+        ModuleHelper.hookAllConstructors(MiuiCellularIconVM, new MethodHook() {
             @Override
             protected void after(MethodHookParam param) throws Throwable {
                 if (MainModule.mPrefs.getBoolean("system_statusbaricons_signal") && !MainModule.mPrefs.getBoolean("system_statusbaricons_signal_wificonnected")) {
