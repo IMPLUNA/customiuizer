@@ -454,14 +454,19 @@ public class ModuleHelper {
 
     static Object sysUIProvider = null;
     public static Object getFlashlightController(ClassLoader classLoader, String controller) {
-        if (sysUIProvider == null) {
-            Class<?> InterfacesImplManager = findClass("com.miui.systemui.interfacesmanager.InterfacesImplManager", classLoader);
-            Class<?> CommonStub$registerCentralSurfacesClass = findClass("miui.stub.CommonStub$registerCentralSurfaces$1", classLoader);
-            Map sClassContainer = (Map)XposedHelpers.getStaticObjectField(InterfacesImplManager, "sClassContainer");
-            sysUIProvider = XposedHelpers.getObjectField(sClassContainer.get(CommonStub$registerCentralSurfacesClass), "$sysUIProvider");
+        try {
+            if (sysUIProvider == null) {
+                Class<?> InterfacesImplManager = findClass("com.miui.systemui.interfacesmanager.InterfacesImplManager", classLoader);
+                Class<?> CommonStub$registerCentralSurfacesClass = findClass("miui.stub.CommonStub$registerCentralSurfaces$1", classLoader);
+                Map sClassContainer = (Map)XposedHelpers.getStaticObjectField(InterfacesImplManager, "sClassContainer");
+                sysUIProvider = XposedHelpers.getObjectField(sClassContainer.get(CommonStub$registerCentralSurfacesClass), "$sysUIProvider");
+            }
+            Object LazyController = XposedHelpers.getObjectField(sysUIProvider, controller);
+            return XposedHelpers.callMethod(LazyController, "get");
+        } catch (Throwable t) {
+            XposedHelpers.log("[Pengeek] getFlashlightController failed: " + t.getMessage());
+            return null;
         }
-        Object LazyController = XposedHelpers.getObjectField(sysUIProvider, controller);
-        return XposedHelpers.callMethod(LazyController, "get");
     }
     public static Method findFirstMethodByName(Class<?> clazz, String methodName) {
         for (Method method : clazz.getDeclaredMethods()) {
