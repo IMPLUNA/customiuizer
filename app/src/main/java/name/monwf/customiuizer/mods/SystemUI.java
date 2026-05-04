@@ -1307,6 +1307,13 @@ public class SystemUI {
                 try {
                 final SparseIntArray subIdLevels = new SparseIntArray();
                 Object mobileIconsViewModel = XposedHelpers.getObjectField(param.getThisObject(), "mobileIconsViewModel");
+                // HyperOS 2 removed reuseCache field - check before using
+                try {
+                    XposedHelpers.getObjectField(mobileIconsViewModel, "reuseCache");
+                } catch (NoSuchFieldError e) {
+                    XposedHelpers.log("[Pengeek] DualRowSignal: reuseCache not found, HyperOS 2 ViewModel-level hooks disabled");
+                    return; // HyperOS 2 architecture changed, skip ViewModel-level hooks
+                }
                 Map iconsVM = (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "reuseCache");
                 Object mStatusBar = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.android.systemui.statusbar.phone.CentralSurfaces");
                 Object javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapter");
@@ -4194,7 +4201,7 @@ public class SystemUI {
                 param.getArgs()[0] = true;
             }
         });
-        ModuleHelper.hookAllConstructors("com.android.systemui.statusbar.notification.icon.domain.interactor.StatusBarNotificationIconsInteractor", lpparam.getClassLoader(), new MethodHook() {
+        ModuleHelper.hookAllConstructorsSilently("com.android.systemui.statusbar.notification.icon.domain.interactor.StatusBarNotificationIconsInteractor", lpparam.getClassLoader(), new MethodHook() {
             @Override
             protected void before(MethodHookParam param) throws Throwable {
                 Class<?> StateFlowKtClass = findClass("kotlinx.coroutines.flow.StateFlowKt", lpparam.getClassLoader());
@@ -4202,6 +4209,7 @@ public class SystemUI {
                 XposedHelpers.setObjectField(param.getArgs()[2], "showSilentStatusIcons", stateFlow);
             }
         });
+        try {
         XposedHelpers.findAndHookMethod("com.android.systemui.statusbar.notification.icon.domain.interactor.NotificationIconsInteractor$filteredNotifSet$1$1", lpparam.getClassLoader(), "invoke", Object.class, new MethodHook() {
             Object notifCollection = null;
             @Override
@@ -4227,6 +4235,9 @@ public class SystemUI {
                 param.setResult(Boolean.FALSE);
             }
         });
+        } catch (Throwable t) {
+            XposedHelpers.log("[Pengeek] NotificationIconsInteractor hook skipped: " + t.getMessage());
+        }
     }
 
     public static void RemovePackageNotificationsLimitHook(PackageReadyParam lpparam) {

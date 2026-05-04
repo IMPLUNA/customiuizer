@@ -152,6 +152,13 @@ public class ModuleHelper {
         }
     }
 
+    public static void hookAllConstructorsSilently(String className, ClassLoader classLoader, MethodHook callback) {
+        try {
+            Class<?> hookClass = XposedHelpers.findClassIfExists(className, classLoader);
+            if (hookClass != null) XposedHelpers.hookAllConstructors(hookClass, callback);
+        } catch (Throwable ignored) {}
+    }
+
     public static void hookAllConstructors(Class<?> hookClass, MethodHook callback) {
         try {
             if (XposedHelpers.hookAllConstructors(hookClass, callback).size() == 0)
