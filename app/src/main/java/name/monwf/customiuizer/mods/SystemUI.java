@@ -1194,6 +1194,18 @@ public class SystemUI {
         });
     }
 
+    private static Map getIconCache(Object mobileIconsViewModel) {
+        try {
+            return (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "reuseCache");
+        } catch (NoSuchFieldError e) {
+            try {
+                return (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "mobileIconSubIdCache");
+            } catch (NoSuchFieldError e2) {
+                return null;
+            }
+        }
+    }
+
     private static void dumpMobileViewModelClasses(ClassLoader cl) {
         try {
             String[] candidates = {
@@ -1314,19 +1326,8 @@ public class SystemUI {
                 final SparseIntArray subIdLevels = new SparseIntArray();
                 Object mobileIconsViewModel = XposedHelpers.getObjectField(param.getThisObject(), "mobileIconsViewModel");
                 // HyperOS 2 uses mobileIconSubIdCache instead of reuseCache
-                Map iconsVM = null;
-                try {
-                    iconsVM = (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "reuseCache");
-                } catch (NoSuchFieldError e) {
-                    // HyperOS 2: try alternative field name
-                    try {
-                        iconsVM = (Map) XposedHelpers.getObjectField(mobileIconsViewModel, "mobileIconSubIdCache");
-                    } catch (NoSuchFieldError e2) {
-                        XposedHelpers.log("[Pengeek] DualRowSignal: no icon cache found, skipped");
-                        return;
-                    }
-                }
-                if (iconsVM == null) { XposedHelpers.log("[Pengeek] DualRowSignal: iconsVM is null"); return; }
+                final Map iconsVM = getIconCache(mobileIconsViewModel);
+                if (iconsVM == null) { XposedHelpers.log("[Pengeek] DualRowSignal: no icon cache found, skipped"); return; }
                 Object mStatusBar = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.android.systemui.statusbar.phone.CentralSurfaces");
                 Object javaAdapter = XposedHelpers.getObjectField(mStatusBar, "mJavaAdapter");
                 Object dataSubIdFlow = ModuleHelper.getObjectFieldByPath(mobileIconsViewModel, "miuiInt.mobileConnectionsRepo.activeMobileDataSubscriptionId");
