@@ -118,7 +118,14 @@ public class ResourceHooks {
 								themeIntegerArrays.put(tv.resId, (int[]) (nightMode ? tv.mNightValue : tv.mValue));
 							}
 							else {
-								themeIntValues.put(tv.resId, (Integer) (nightMode ? tv.mNightValue : tv.mValue));
+								Object val = nightMode ? tv.mNightValue : tv.mValue;
+								if (val instanceof Float) {
+									themeIntValues.put(tv.resId, ((Float) val).intValue());
+								} else if (val instanceof Integer) {
+									themeIntValues.put(tv.resId, (Integer) val);
+								} else if (val instanceof Number) {
+									themeIntValues.put(tv.resId, ((Number) val).intValue());
+								}
 							}
 						}
 					}
