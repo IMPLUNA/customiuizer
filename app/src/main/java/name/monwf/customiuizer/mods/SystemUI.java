@@ -4278,12 +4278,12 @@ public class SystemUI {
     }
 
     public static void DisableFoldNotificationsHook(PackageReadyParam lpparam) {
-        ModuleHelper.hookAllMethods("com.android.systemui.statusbar.notification.collection.coordinator.FoldCoordinator", lpparam.getClassLoader(), "attach", HookerClassHelper.DO_NOTHING);
-        ModuleHelper.findAndHookMethod("com.miui.systemui.notification.MiuiBaseNotifUtil", lpparam.getClassLoader(), "shouldSuppressFold", HookerClassHelper.returnConstant(true));
+        ModuleHelper.hookAllMethodsSilently("com.android.systemui.statusbar.notification.collection.coordinator.FoldCoordinator", lpparam.getClassLoader(), "attach", HookerClassHelper.DO_NOTHING);
+        ModuleHelper.findAndHookMethodSilently("com.miui.systemui.notification.MiuiBaseNotifUtil", lpparam.getClassLoader(), "shouldSuppressFold", HookerClassHelper.returnConstant(true));
     }
 
     public static void DisableStrongToastHook(PackageReadyParam lpparam) {
-        ModuleHelper.hookAllMethods("com.miui.toast.MIUIStrongToastControl", lpparam.getClassLoader(), "showCustomStrongToast", new MethodHook() {
+        ModuleHelper.hookAllMethodsSilently("com.miui.toast.MIUIStrongToastControl", lpparam.getClassLoader(), "showCustomStrongToast", new MethodHook() {
             @Override
             protected void before(MethodHookParam param) throws Throwable {
                 boolean blockToast = MainModule.mPrefs.getBoolean("system_notif_disable_strong_toast_always", true);
@@ -4306,7 +4306,7 @@ public class SystemUI {
         if (toastWidth < 100) {
             MainModule.resHooks.setThemeValueReplacement("com.android.systemui", "dimen", "strong_toast_width_window", Math.ceil(3.37 * toastWidth));
             MainModule.resHooks.setThemeValueReplacement("com.android.systemui", "dimen", "strong_toast_width", Math.ceil(3.2 * toastWidth));
-            ModuleHelper.hookAllMethods("com.android.systemui.toast.MIUIStrongToast", lpparam.getClassLoader(), "showCustomStrongToast", new MethodHook() {
+            ModuleHelper.hookAllMethodsSilently("com.android.systemui.toast.MIUIStrongToast", lpparam.getClassLoader(), "showCustomStrongToast", new MethodHook() {
                 @Override
                 protected void after(MethodHookParam param) throws Throwable {
                     View mStrongToastBottomView = (View) XposedHelpers.getObjectField(param.getThisObject(), "mStrongToastBottomView");
@@ -4317,7 +4317,7 @@ public class SystemUI {
                     mRLLeft.setLayoutParams(layoutParams);
                 }
             });
-            ModuleHelper.findAndHookMethod("com.android.systemui.toast.MIUIStrongToast", lpparam.getClassLoader(), "getWindowParam", new MethodHook() {
+            ModuleHelper.findAndHookMethodSilently("com.android.systemui.toast.MIUIStrongToast", lpparam.getClassLoader(), "getWindowParam", new MethodHook() {
                 @Override
                 protected void after(MethodHookParam param) throws Throwable {
                     WindowManager.LayoutParams lp = (WindowManager.LayoutParams) param.getResult();
