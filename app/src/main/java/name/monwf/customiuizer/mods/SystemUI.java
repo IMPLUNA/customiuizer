@@ -1481,62 +1481,71 @@ public class SystemUI {
                 }
             }
         };
-        // HyperOS 2: MiuiMobileIconBinder removed, implement dual-row via MiuiPhoneStatusBarView
+        // HyperOS 2: Use ModernStatusBarMobileView.constructAndBind for dual-row signal
         try {
-            Class<?> PhoneStatusBarClass = findClassIfExists("com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView", lpparam.getClassLoader());
-            if (PhoneStatusBarClass == null) {
-                XposedHelpers.log("[Pengeek] DualRowSignal: MiuiPhoneStatusBarView not found");
+            Class<?> ModernMobileViewClass = findClassIfExists("com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernStatusBarMobileView", lpparam.getClassLoader());
+            if (ModernMobileViewClass == null) {
+                XposedHelpers.log("[Pengeek] DualRowSignal: ModernStatusBarMobileView not found, falling back");
+                // Fallback: try MiuiPhoneStatusBarView
+                Class<?> PhoneStatusBarClass = findClassIfExists("com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView", lpparam.getClassLoader());
+                if (PhoneStatusBarClass != null) {
+                    ModuleHelper.findAndHookMethod(PhoneStatusBarClass, "onFinishInflate", new MethodHook() {
+                        @Override
+                        protected void after(MethodHookParam param) throws Throwable {
+                            try {
+                                addDualSignalView((View) param.getThisObject(), param.getThisObject().getClass().getClassLoader());
+                            } catch (Throwable t) {
+                                XposedHelpers.log("[Pengeek] DualRowSignal fallback error: " + t.getMessage());
+                            }
+                        }
+                    });
+                }
                 return;
             }
-            ModuleHelper.findAndHookMethod(PhoneStatusBarClass, "onFinishInflate", new MethodHook() {
+            XposedHelpers.log("[Pengeek] DualRowSignal: hooking ModernStatusBarMobileView");
+            ModuleHelper.findAndHookMethod(ModernMobileViewClass, "constructAndBind", new MethodHook() {
                 @Override
                 protected void after(MethodHookParam param) throws Throwable {
                     try {
-                        View statusBarView = (View) param.getThisObject();
-                        Context ctx = statusBarView.getContext();
+                        Object result = param.getResult();
+                        if (result == null) return;
+                        View rootView = (View) result;
+                        Context ctx = rootView.getContext();
+                        int orientation = ctx.getResources().getConfiguration().orientation;
+                        if (orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT) return;
 
-                        // Create dual-signal container (vertical layout)
+                        // Find mobile_group in the parent
+                        ViewGroup parent = (ViewGroup) rootView.getParent();
+                        if (parent == null) return;
+
+                        // Create dual-signal container
                         LinearLayout dualContainer = new LinearLayout(ctx);
                         dualContainer.setOrientation(LinearLayout.VERTICAL);
                         dualContainer.setGravity(Gravity.CENTER);
-                        dualContainer.setId(SUBMOBILE_ID);
                         LinearLayout.LayoutParams containerLp = new LinearLayout.LayoutParams(
                             LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.MATCH_PARENT
+                            LinearLayout.LayoutParams.WRAP_CONTENT
                         );
                         dualContainer.setLayoutParams(containerLp);
 
-                        // Slot 1 signal text (top)
                         TextView slot1Text = new TextView(ctx);
                         slot1Text.setTextColor(Color.WHITE);
                         slot1Text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 7);
                         slot1Text.setGravity(Gravity.CENTER);
-                        slot1Text.setTag("dual_signal_slot1");
                         dualContainer.addView(slot1Text);
 
-                        // Slot 2 signal text (bottom)
                         TextView slot2Text = new TextView(ctx);
                         slot2Text.setTextColor(Color.WHITE);
                         slot2Text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 7);
                         slot2Text.setGravity(Gravity.CENTER);
-                        slot2Text.setTag("dual_signal_slot2");
                         dualContainer.addView(slot2Text);
 
-                        // Find signal icon container to insert into
-                        int mobileGroupId = ctx.getResources().getIdentifier("mobile_group", "id", "com.android.systemui");
-                        if (mobileGroupId != 0) {
-                            ViewGroup mobileGroup = statusBarView.findViewById(mobileGroupId);
-                            if (mobileGroup != null) {
-                                mobileGroup.addView(dualContainer, 0);
-                                XposedHelpers.setAdditionalInstanceField(statusBarView, "dualSignalContainer", dualContainer);
-                                XposedHelpers.log("[Pengeek] DualRowSignal: view added to mobile_group");
-                            }
-                        }
-
-                        // Start monitoring signal strength
+                        // Add after the original signal icon
+                        parent.addView(dualContainer);
+                        XposedHelpers.log("[Pengeek] DualRowSignal: view added via ModernStatusBarMobileView");
                         startDualSignalMonitor(ctx, slot1Text, slot2Text);
                     } catch (Throwable t) {
-                        XposedHelpers.log("[Pengeek] DualRowSignal view creation error: " + t.getMessage());
+                        XposedHelpers.log("[Pengeek] DualRowSignal ModernView error: " + t.getMessage());
                     }
                 }
             });
@@ -1545,43 +1554,88 @@ public class SystemUI {
         }
     }
 
+    private static void addDualSignalView(View statusBarView, ClassLoader cl) {
+        try {
+            Object existing = XposedHelpers.getAdditionalInstanceField(statusBarView, "dualSignalContainer");
+            if (existing != null) return;
+            Context ctx = statusBarView.getContext();
+            int orientation = ctx.getResources().getConfiguration().orientation;
+            if (orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT) return;
+            int mobileGroupId = ctx.getResources().getIdentifier("mobile_group", "id", "com.android.systemui");
+            if (mobileGroupId == 0) return;
+            ViewGroup mobileGroup = statusBarView.findViewById(mobileGroupId);
+            if (mobileGroup == null) return;
+
+            LinearLayout dualContainer = new LinearLayout(ctx);
+            dualContainer.setOrientation(LinearLayout.VERTICAL);
+            dualContainer.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams containerLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            dualContainer.setLayoutParams(containerLp);
+
+            TextView slot1Text = new TextView(ctx);
+            slot1Text.setTextColor(Color.WHITE);
+            slot1Text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 7);
+            slot1Text.setGravity(Gravity.CENTER);
+            dualContainer.addView(slot1Text);
+
+            TextView slot2Text = new TextView(ctx);
+            slot2Text.setTextColor(Color.WHITE);
+            slot2Text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 7);
+            slot2Text.setGravity(Gravity.CENTER);
+            dualContainer.addView(slot2Text);
+
+            mobileGroup.addView(dualContainer);
+            XposedHelpers.setAdditionalInstanceField(statusBarView, "dualSignalContainer", dualContainer);
+            startDualSignalMonitor(ctx, slot1Text, slot2Text);
+            XposedHelpers.log("[Pengeek] DualRowSignal: view added to mobile_group");
+        } catch (Throwable t) {
+            XposedHelpers.log("[Pengeek] DualRowSignal view creation error: " + t.getMessage());
+        }
+    }
+    }
+
     private static void startDualSignalMonitor(Context ctx, TextView slot1, TextView slot2) {
+        // Simple approach: use TelephonyCallback if available
         try {
             android.telephony.TelephonyManager tm = (android.telephony.TelephonyManager) ctx.getSystemService(Context.TELEPHONY_SERVICE);
             if (tm == null) return;
-
-            android.telephony.PhoneStateListener listener = new android.telephony.PhoneStateListener() {
+            tm.registerTelephonyCallback(ctx.getMainExecutor(), new android.telephony.TelephonyCallback() implements android.telephony.TelephonyCallback.SignalStrengthsListener {
                 @Override
                 public void onSignalStrengthsChanged(android.telephony.SignalStrength signalStrength) {
-                    try {
-                        java.util.List<android.telephony.CellSignalStrength> cells = signalStrength.getCellSignalStrengths();
-                        int slot1Dbm = -999;
-                        int slot2Dbm = -999;
-                        for (android.telephony.CellSignalStrength cell : cells) {
-                            int dbm = cell.getDbm();
-                            if (dbm > -200 && dbm < 0) {
-                                if (slot1Dbm == -999) slot1Dbm = dbm;
-                                else if (slot2Dbm == -999) slot2Dbm = dbm;
-                            }
-                        }
-                        final int s1 = slot1Dbm;
-                        final int s2 = slot2Dbm;
-                        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-                        mainHandler.post(() -> {
-                            if (s1 > -999) slot1.setText(s1 + "dBm");
-                            else slot1.setText("");
-                            if (s2 > -999) slot2.setText(s2 + "dBm");
-                            else slot2.setText("");
-                        });
-                    } catch (Throwable t) {
-                        XposedHelpers.log("[Pengeek] DualSignal update error: " + t.getMessage());
-                    }
+                    updateDualSignalDbm(ctx, slot1, slot2, signalStrength);
                 }
-            };
-            tm.listen(listener, android.telephony.PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+            });
             XposedHelpers.log("[Pengeek] DualRowSignal: signal monitor started");
         } catch (Throwable t) {
             XposedHelpers.log("[Pengeek] DualRowSignal monitor error: " + t.getMessage());
+        }
+    }
+
+    private static void updateDualSignalDbm(Context ctx, TextView slot1, TextView slot2, android.telephony.SignalStrength signalStrength) {
+        try {
+            java.util.List<android.telephony.CellSignalStrength> cells = signalStrength.getCellSignalStrengths();
+            int slot1Dbm = -999;
+            int slot2Dbm = -999;
+            for (android.telephony.CellSignalStrength cell : cells) {
+                int dbm = cell.getDbm();
+                if (dbm > -200 && dbm < 0) {
+                    if (slot1Dbm == -999) slot1Dbm = dbm;
+                    else if (slot2Dbm == -999) slot2Dbm = dbm;
+                }
+            }
+            final int s1 = slot1Dbm;
+            final int s2 = slot2Dbm;
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (s1 > -999) slot1.setText(s1 + "dBm");
+                else slot1.setText("");
+                if (s2 > -999) slot2.setText(s2 + "dBm");
+                else slot2.setText("");
+            });
+        } catch (Throwable t) {
+            XposedHelpers.log("[Pengeek] DualSignal update error: " + t.getMessage());
         }
     }
 
