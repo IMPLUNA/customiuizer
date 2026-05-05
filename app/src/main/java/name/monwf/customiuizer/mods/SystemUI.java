@@ -1502,53 +1502,34 @@ public class SystemUI {
                 }
                 return;
             }
-            XposedHelpers.log("[Pengeek] DualRowSignal: hooking ModernStatusBarMobileView");
-            ModuleHelper.findAndHookMethod(ModernMobileViewClass, "constructAndBind", new MethodHook() {
-                @Override
-                protected void after(MethodHookParam param) throws Throwable {
-                    try {
-                        Object result = param.getResult();
-                        if (result == null) return;
-                        View rootView = (View) result;
-                        Context ctx = rootView.getContext();
-                        int orientation = ctx.getResources().getConfiguration().orientation;
-                        if (orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT) return;
-
-                        // Find mobile_group in the parent
-                        ViewGroup parent = (ViewGroup) rootView.getParent();
-                        if (parent == null) return;
-
-                        // Create dual-signal container
-                        LinearLayout dualContainer = new LinearLayout(ctx);
-                        dualContainer.setOrientation(LinearLayout.VERTICAL);
-                        dualContainer.setGravity(Gravity.CENTER);
-                        LinearLayout.LayoutParams containerLp = new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                        );
-                        dualContainer.setLayoutParams(containerLp);
-
-                        TextView slot1Text = new TextView(ctx);
-                        slot1Text.setTextColor(Color.WHITE);
-                        slot1Text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 7);
-                        slot1Text.setGravity(Gravity.CENTER);
-                        dualContainer.addView(slot1Text);
-
-                        TextView slot2Text = new TextView(ctx);
-                        slot2Text.setTextColor(Color.WHITE);
-                        slot2Text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 7);
-                        slot2Text.setGravity(Gravity.CENTER);
-                        dualContainer.addView(slot2Text);
-
-                        // Add after the original signal icon
-                        parent.addView(dualContainer);
-                        XposedHelpers.log("[Pengeek] DualRowSignal: view added via ModernStatusBarMobileView");
-                        startDualSignalMonitor(ctx, slot1Text, slot2Text);
-                    } catch (Throwable t) {
-                        XposedHelpers.log("[Pengeek] DualRowSignal ModernView error: " + t.getMessage());
-                    }
+            XposedHelpers.log("[Pengeek] DualRowSignal: found ModernStatusBarMobileView, dumping methods...");
+            // Dump methods for diagnostic
+            java.lang.reflect.Method[] methods = ModernMobileViewClass.getDeclaredMethods();
+            StringBuilder sb = new StringBuilder("[Pengeek] ModernStatusBarMobileView methods:");
+            for (java.lang.reflect.Method m : methods) {
+                sb.append("\n  ").append(m.getName()).append("(");
+                Class<?>[] params = m.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(params[i].getSimpleName());
                 }
-            });
+                sb.append(") -> ").append(m.getReturnType().getSimpleName());
+            }
+            XposedHelpers.log(sb.toString());
+            // Fallback: use MiuiPhoneStatusBarView for view injection
+            Class<?> PhoneStatusBarClass = findClassIfExists("com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView", lpparam.getClassLoader());
+            if (PhoneStatusBarClass != null) {
+                ModuleHelper.findAndHookMethod(PhoneStatusBarClass, "onFinishInflate", new MethodHook() {
+                    @Override
+                    protected void after(MethodHookParam param) throws Throwable {
+                        try {
+                            addDualSignalView((View) param.getThisObject(), param.getThisObject().getClass().getClassLoader());
+                        } catch (Throwable t) {
+                            XposedHelpers.log("[Pengeek] DualRowSignal fallback error: " + t.getMessage());
+                        }
+                    }
+                });
+            }
         } catch (Throwable t) {
             XposedHelpers.log("[Pengeek] DualRowSignal View hook error: " + t.getMessage());
         }

@@ -1381,8 +1381,12 @@ public class System {
                 int opt = MainModule.mPrefs.getStringAsInt("system_colorizenotifs", 1);
                 boolean isSelected = MainModule.mPrefs.getStringSet("system_colorizenotifs_apps").contains(pkgName);
                 if (opt == 2 && !isSelected || opt == 3 && isSelected) {
-                    XposedHelpers.log("[Pengeek] NotificationColorize: applying to " + pkgName);
+                    XposedHelpers.log("[Pengeek] NotificationColorize: applying to " + pkgName + " opt=" + opt);
+                    try {
                     XposedHelpers.callMethod(builder, "makeNotificationGroupHeader");
+                    } catch (Throwable t) {
+                        XposedHelpers.log("[Pengeek] NotificationColorize: makeNotificationGroupHeader failed: " + t.getMessage());
+                    }
                     if (sAppIconManager == null) {
                         sAppIconManager = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.miui.systemui.graphics.AppIconsManager");
                     }
