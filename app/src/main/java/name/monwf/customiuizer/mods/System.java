@@ -1345,11 +1345,27 @@ public class System {
                 }
         });
 
+        Class<?> inflaterClass = findClassIfExists("com.android.systemui.statusbar.notification.row.NotificationContentInflaterInjector", lpparam.getClassLoader());
+        XposedHelpers.log("[Pengeek] NotificationColorize: inflaterClass=" + (inflaterClass != null ? inflaterClass.getName() : "NOT FOUND"));
+        if (inflaterClass != null) {
+            // Log all methods for diagnostics
+            java.lang.reflect.Method[] methods = inflaterClass.getDeclaredMethods();
+            for (java.lang.reflect.Method m : methods) {
+                if (m.getName().contains("Theme") || m.getName().contains("theme") || m.getName().contains("color") || m.getName().contains("Color")) {
+                    XposedHelpers.log("[Pengeek] NotificationColorize: found method " + m.getName());
+                }
+            }
+        }
         ModuleHelper.hookAllMethodsSilently("com.android.systemui.statusbar.notification.row.NotificationContentInflaterInjector", lpparam.getClassLoader(), "handle3thThemeColor", new MethodHook() {
             private Object sAppIconManager = null;
+            private boolean loggedOnce = false;
             @Override
             protected void before(final MethodHookParam param) throws Throwable {
                 try {
+                if (!loggedOnce) {
+                    loggedOnce = true;
+                    XposedHelpers.log("[Pengeek] NotificationColorize: hook called, args=" + param.getArgs().length);
+                }
                 if (param.getArgs().length < 2) return;
                 if (!(param.getArgs()[1] instanceof Notification.Builder)) return;
                 Notification.Builder builder = (Notification.Builder) param.getArgs()[1];
@@ -1365,9 +1381,14 @@ public class System {
                 int opt = MainModule.mPrefs.getStringAsInt("system_colorizenotifs", 1);
                 boolean isSelected = MainModule.mPrefs.getStringSet("system_colorizenotifs_apps").contains(pkgName);
                 if (opt == 2 && !isSelected || opt == 3 && isSelected) {
+                    XposedHelpers.log("[Pengeek] NotificationColorize: applying to " + pkgName);
                     XposedHelpers.callMethod(builder, "makeNotificationGroupHeader");
                     if (sAppIconManager == null) {
                         sAppIconManager = ModuleHelper.getDepInstance(lpparam.getClassLoader(), "com.miui.systemui.graphics.AppIconsManager");
+                    }
+                    if (sAppIconManager == null) {
+                        XposedHelpers.log("[Pengeek] NotificationColorize: AppIconsManager not found");
+                        return;
                     }
                     int userId = ModuleHelper.getUserId();
                     Bitmap notifyIcon = (Bitmap) XposedHelpers.callMethod(sAppIconManager, "getAppIconBitmap", userId, pkgName);
