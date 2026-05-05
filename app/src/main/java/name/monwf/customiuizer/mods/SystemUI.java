@@ -1595,7 +1595,6 @@ public class SystemUI {
             XposedHelpers.log("[Pengeek] DualRowSignal view creation error: " + t.getMessage());
         }
     }
-    }
 
     private static void startDualSignalMonitor(Context ctx, TextView slot1, TextView slot2) {
         // Simple approach: use TelephonyCallback if available
