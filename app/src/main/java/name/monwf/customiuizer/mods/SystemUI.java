@@ -1597,16 +1597,16 @@ public class SystemUI {
     }
 
     private static void startDualSignalMonitor(Context ctx, TextView slot1, TextView slot2) {
-        // Simple approach: use TelephonyCallback if available
         try {
             android.telephony.TelephonyManager tm = (android.telephony.TelephonyManager) ctx.getSystemService(Context.TELEPHONY_SERVICE);
             if (tm == null) return;
-            tm.registerTelephonyCallback(ctx.getMainExecutor(), new android.telephony.TelephonyCallback() implements android.telephony.TelephonyCallback.SignalStrengthsListener {
+            // Register a PhoneStateListener for signal strength updates (deprecated but works)
+            tm.listen(new android.telephony.PhoneStateListener() {
                 @Override
                 public void onSignalStrengthsChanged(android.telephony.SignalStrength signalStrength) {
                     updateDualSignalDbm(ctx, slot1, slot2, signalStrength);
                 }
-            });
+            }, android.telephony.PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
             XposedHelpers.log("[Pengeek] DualRowSignal: signal monitor started");
         } catch (Throwable t) {
             XposedHelpers.log("[Pengeek] DualRowSignal monitor error: " + t.getMessage());
